@@ -63,6 +63,8 @@ const seedExpenses = [
 
 let tasks = seedTasks;
 let expenses = seedExpenses;
+let contacts = [];
+let saleDocuments = [];
 let currentStatus = "all";
 let activeHouseholdId = null;
 let activeUser = null;
@@ -70,6 +72,8 @@ let authMode = "login";
 let profileCreationInProgress = false;
 let unsubscribeTasks = null;
 let unsubscribeExpenses = null;
+let unsubscribeContacts = null;
+let unsubscribeDocuments = null;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -77,6 +81,7 @@ const setSyncing = value => document.body.classList.toggle("syncing", value);
 const formatMoney = n => new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n);
 const formatDate = d => d ? new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(new Date(`${d}T12:00:00`)) : "Sans date";
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+const safeUrl = value => /^https?:\/\//i.test(value||"") ? esc(value) : "";
 const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadline}T23:59:59`) < new Date();
 
 function taskRow(t, full=false) {
@@ -129,8 +134,10 @@ function renderTasks() {
 }
 
 function renderSale() {
-  const sale=tasks.filter(t=>t.category==="Vente de la maison");
-  $("#saleTimeline").innerHTML=sale.map((t,i)=>`<div class="timeline-item"><span class="timeline-dot">${t.done?"✓":i+1}</span><div><strong>${esc(t.title)}</strong><span>${t.assignee} · ${formatDate(t.deadline)}</span></div><b class="status ${t.done?"done":t.status}">${t.done?"Terminé":t.status==="doing"?"En cours":"À faire"}</b></div>`).join("");
+  const sale=tasks.filter(t=>t.category==="Vente de la maison").sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999"));
+  $("#saleTimeline").innerHTML=sale.map((t,i)=>`<div class="timeline-item"><span class="timeline-dot">${t.done?"✓":i+1}</span><div><strong>${esc(t.title)}</strong><span>${t.assignee} · ${formatDate(t.deadline)}</span></div><b class="status ${t.done?"done":t.status}">${t.done?"Terminé":t.status==="doing"?"En cours":"À faire"}</b><button class="edit-task edit-sale-task" data-task-id="${t.id}"><span>✎</span> Modifier</button></div>`).join("")||`<div class="empty-contact">Ajoutez une tâche dans la catégorie « Vente de la maison ».</div>`;
+  $("#contactList").innerHTML=contacts.length?contacts.sort((a,b)=>a.type.localeCompare(b.type)).map(contact=>`<article class="contact-card" data-contact-id="${contact.id}"><span class="contact-icon">${contact.type==="Notaire"?"§":contact.type==="Agence immobilière"?"⌂":"●"}</span><div><strong>${esc(contact.name)}</strong><small>${esc(contact.type)}${contact.contactName?` · ${esc(contact.contactName)}`:""}</small><div class="contact-links">${contact.phone?`<a href="tel:${esc(contact.phone)}">${esc(contact.phone)}</a>`:""}${contact.email?`<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>`:""}</div></div><button class="edit-task edit-contact"><span>✎</span> Modifier</button></article>`).join(""):`<div class="empty-contact">Aucun interlocuteur enregistré.<br>Ajoutez l’agence, le notaire ou le diagnostiqueur.</div>`;
+  $("#documentList").innerHTML=saleDocuments.length?saleDocuments.sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).map(item=>`<div class="document-row" data-document-id="${item.id}"><span>▤</span><div><strong>${esc(item.name)}</strong><small>${item.notes?esc(item.notes):formatDate(item.deadline)}</small></div><span>${safeUrl(item.url)?`<a href="${safeUrl(item.url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`:""}</span><b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`).join(""):`<div class="empty-contact">Aucun document suivi pour le moment.</div>`;
 }
 
 function renderBudget() {
@@ -169,6 +176,22 @@ function openTask(task=null){
     form.elements.notes.value=task.notes||"";
   }
   $("#taskDialog").showModal();setTimeout(()=>form.elements.title.focus(),50);
+}
+
+function openContact(contact=null){
+  const form=$("#contactForm"),editing=Boolean(contact);form.reset();form.dataset.editing=editing?contact.id:"";
+  $("#contactDialogTitle").textContent=editing?"Modifier le contact":"Ajouter un contact";
+  $("#deleteContactButton").hidden=!editing;
+  if(editing) ["type","name","contactName","phone","email","notes"].forEach(key=>form.elements[key].value=contact[key]||"");
+  $("#contactDialog").showModal();
+}
+
+function openDocument(item=null){
+  const form=$("#documentForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
+  $("#documentDialogTitle").textContent=editing?"Modifier le document":"Ajouter un document";
+  $("#deleteDocumentButton").hidden=!editing;
+  if(editing) ["name","status","deadline","url","notes"].forEach(key=>form.elements[key].value=item[key]||"");
+  $("#documentDialog").showModal();
 }
 
 function firebaseMessage(error) {
@@ -233,7 +256,9 @@ async function joinHousehold(user, displayName, rawCode) {
 function stopSubscriptions() {
   if(unsubscribeTasks) unsubscribeTasks();
   if(unsubscribeExpenses) unsubscribeExpenses();
-  unsubscribeTasks=null; unsubscribeExpenses=null;
+  if(unsubscribeContacts) unsubscribeContacts();
+  if(unsubscribeDocuments) unsubscribeDocuments();
+  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;
 }
 
 function subscribeToHousehold(householdId) {
@@ -247,6 +272,14 @@ function subscribeToHousehold(householdId) {
     expenses=snapshot.docs.map(item=>({id:item.id,...item.data()}));
     renderAll(); setSyncing(false);
   },error=>{setSyncing(false);toast(firebaseMessage(error));});
+  unsubscribeContacts=onSnapshot(collection(householdRef,"contacts"),snapshot=>{
+    contacts=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderSale();setSyncing(false);
+  },error=>toast(firebaseMessage(error)));
+  unsubscribeDocuments=onSnapshot(collection(householdRef,"documents"),snapshot=>{
+    saleDocuments=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderSale();setSyncing(false);
+  },error=>toast(firebaseMessage(error)));
 }
 
 async function openSession(user) {
@@ -278,6 +311,10 @@ $$(".add-task-secondary").forEach(b=>b.addEventListener("click",()=>openTask()))
 $$(".close-dialog").forEach(b=>b.addEventListener("click",()=>$("#taskDialog").close()));
 $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog").close()));
 $("#addExpenseButton").addEventListener("click",()=>$("#expenseDialog").showModal());
+$("#addContactButton").addEventListener("click",()=>openContact());
+$("#addDocumentButton").addEventListener("click",()=>openDocument());
+$$(".close-contact").forEach(button=>button.addEventListener("click",()=>$("#contactDialog").close()));
+$$(".close-document").forEach(button=>button.addEventListener("click",()=>$("#documentDialog").close()));
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
 $("#taskForm").addEventListener("submit",async e=>{
@@ -310,10 +347,50 @@ $("#expenseForm").addEventListener("submit",async e=>{
     e.currentTarget.reset();$("#expenseDialog").close();toast("Dépense ajoutée !");
   } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
+$("#contactForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(!activeHouseholdId)return;
+  const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
+  const payload={type:data.get("type"),name:data.get("name").trim(),contactName:data.get("contactName").trim(),phone:data.get("phone").trim(),email:data.get("email").trim(),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
+  setSyncing(true);
+  try{
+    if(id)await updateDoc(doc(db,"households",activeHouseholdId,"contacts",id),payload);
+    else await addDoc(collection(db,"households",activeHouseholdId,"contacts"),{...payload,createdAt:serverTimestamp()});
+    $("#contactDialog").close();toast(id?"Contact mis à jour !":"Contact ajouté !");
+  }catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
+$("#documentForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(!activeHouseholdId)return;
+  const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
+  const payload={name:data.get("name").trim(),status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
+  setSyncing(true);
+  try{
+    if(id)await updateDoc(doc(db,"households",activeHouseholdId,"documents",id),payload);
+    else await addDoc(collection(db,"households",activeHouseholdId,"documents"),{...payload,createdAt:serverTimestamp()});
+    $("#documentDialog").close();toast(id?"Document mis à jour !":"Document ajouté !");
+  }catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 document.addEventListener("click",async e=>{
+  const saleEdit=e.target.closest(".edit-sale-task");
+  if(saleEdit){
+    const task=tasks.find(item=>String(item.id)===saleEdit.dataset.taskId);
+    if(task)openTask(task);return;
+  }
+  const contactEdit=e.target.closest(".edit-contact");
+  if(contactEdit){
+    const id=contactEdit.closest("[data-contact-id]").dataset.contactId;
+    const contact=contacts.find(item=>String(item.id)===id);
+    if(contact)openContact(contact);return;
+  }
+  const documentEdit=e.target.closest(".edit-document");
+  if(documentEdit){
+    const id=documentEdit.closest("[data-document-id]").dataset.documentId;
+    const item=saleDocuments.find(docItem=>String(docItem.id)===id);
+    if(item)openDocument(item);return;
+  }
   const edit=e.target.closest(".edit-task");
   if(edit){
-    const id=edit.closest("[data-id]").dataset.id,task=tasks.find(t=>String(t.id)===id);
+    const row=edit.closest("[data-id]");if(!row)return;
+    const id=row.dataset.id,task=tasks.find(t=>String(t.id)===id);
     if(task)openTask(task);
     return;
   }
@@ -339,6 +416,16 @@ $("#deleteTaskButton").addEventListener("click",async()=>{
   setSyncing(true);
   try{await deleteDoc(doc(db,"households",activeHouseholdId,"tasks",id));$("#taskDialog").close();toast("Tâche supprimée.");}
   catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
+$("#deleteContactButton").addEventListener("click",async()=>{
+  const id=$("#contactForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce contact ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"contacts",id));$("#contactDialog").close();toast("Contact supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
+$("#deleteDocumentButton").addEventListener("click",async()=>{
+  const id=$("#documentForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce document ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 $$(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$$(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#personFilter").addEventListener("change",renderTasks);

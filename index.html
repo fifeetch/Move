@@ -114,9 +114,9 @@
           <div class="page-title"><div><p class="eyebrow">VENTE</p><h1>La maison</h1><p>Du premier rendez-vous jusqu’à la remise des clés.</p></div></div>
           <div class="dashboard-grid">
             <section class="panel"><div class="panel-heading"><h2>Parcours de vente</h2></div><div id="saleTimeline" class="timeline"></div></section>
-            <section class="panel contact-panel"><p class="eyebrow">CONTACTS</p><h2>Les interlocuteurs</h2><div class="empty-contact">＋<strong>Ajouter l’agence</strong><span>Coordonnées et mandat</span></div><div class="empty-contact">＋<strong>Ajouter le notaire</strong><span>Coordonnées et dossier</span></div></section>
+            <section class="panel contact-panel"><div class="panel-heading"><div><p class="eyebrow">CONTACTS</p><h2>Les interlocuteurs</h2></div><button class="text-button" id="addContactButton">＋ Ajouter</button></div><div id="contactList" class="contact-list"></div></section>
           </div>
-          <section class="panel document-panel"><div class="panel-heading"><h2>Documents importants</h2><button class="text-button">＋ Ajouter</button></div><div class="document-row"><span>▤</span><div><strong>Dossier notaire</strong><small>À compléter</small></div><b class="status doing">En cours</b></div><div class="document-row"><span>▤</span><div><strong>Diagnostics immobiliers</strong><small>Rendez-vous à programmer</small></div><b class="status todo">À faire</b></div></section>
+          <section class="panel document-panel"><div class="panel-heading"><h2>Documents importants</h2><button class="text-button" id="addDocumentButton">＋ Ajouter</button></div><div id="documentList"></div></section>
         </section>
 
         <section class="view" id="moveView">
@@ -203,7 +203,29 @@
     </form>
   </dialog>
 
+  <dialog id="contactDialog">
+    <form id="contactForm">
+      <div class="dialog-head"><div><p class="eyebrow">INTERLOCUTEUR</p><h2 id="contactDialogTitle">Ajouter un contact</h2></div><button type="button" class="icon-button close-contact">×</button></div>
+      <div class="form-row"><label>Type<select name="type"><option>Agence immobilière</option><option>Notaire</option><option>Diagnostiqueur</option><option>Acheteur</option><option>Autre</option></select></label><label>Nom<input name="name" required placeholder="Nom ou société"></label></div>
+      <label>Personne à contacter<input name="contactName" placeholder="Prénom et nom"></label>
+      <div class="form-row"><label>Téléphone<input name="phone" type="tel" placeholder="06…"></label><label>E-mail<input name="email" type="email" placeholder="contact@…"></label></div>
+      <label>Notes<textarea name="notes" rows="3" placeholder="Mandat, horaires, informations utiles…"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteContactButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-contact">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="documentDialog">
+    <form id="documentForm">
+      <div class="dialog-head"><div><p class="eyebrow">DOSSIER DE VENTE</p><h2 id="documentDialogTitle">Ajouter un document</h2></div><button type="button" class="icon-button close-document">×</button></div>
+      <label>Nom du document<input name="name" required placeholder="Ex. Titre de propriété"></label>
+      <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Échéance<input name="deadline" type="date"></label></div>
+      <label>Lien vers le document <small>(facultatif)</small><input name="url" type="url" placeholder="https://…"></label>
+      <label>Notes<textarea name="notes" rows="3" placeholder="Où le trouver, personne à relancer…"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteDocumentButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-document">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>
