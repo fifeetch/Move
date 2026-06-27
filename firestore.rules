@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function householdMember(householdId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/households/$(householdId))
+          .data.members[request.auth.uid] == true;
+    }
+
+    match /users/{userId} {
+      allow create, read, update: if signedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /households/{householdId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.members[request.auth.uid] == true;
+      allow get: if signedIn() && (
+        resource.data.members[request.auth.uid] == true
+        || resource.data.joinable == true
+      );
+      allow list: if false;
+      allow update: if signedIn() && (
+        resource.data.members[request.auth.uid] == true
+        || (
+          resource.data.joinable == true
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'memberNames', 'updatedAt'])
+          && request.resource.data.members[request.auth.uid] == true
+        )
+      );
+      allow delete: if false;
+
+      match /{collectionName}/{documentId} {
+        allow read, write: if householdMember(householdId)
+          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'movingBoxes'];
+      }
+    }
+  }
+}

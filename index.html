@@ -25,10 +25,10 @@
         <button class="nav-item" data-view="budget"><span>€</span> Budget & achats</button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="couple-card">
+        <button class="couple-card user-menu" id="userMenuButton">
           <div class="avatars"><span class="avatar marion">M</span><span class="avatar philippe">P</span></div>
-          <div><strong>Marion & Philippe</strong><span>Espace partagé</span></div>
-        </div>
+          <div><strong id="householdLabel">Notre foyer</strong><span id="currentUserLabel">Connexion…</span></div>
+        </button>
         <button class="nav-item" id="settingsButton"><span>⚙</span> Paramètres</button>
       </div>
     </aside>
@@ -140,6 +140,40 @@
     </main>
   </div>
 
+  <div class="auth-gate" id="authGate">
+    <section class="auth-card">
+      <div class="auth-visual">
+        <div class="brand auth-brand"><div class="brand-mark">⌁</div><div><strong>Cap Montagne</strong><span>Notre nouveau départ</span></div></div>
+        <div class="auth-copy"><p class="eyebrow">UN PROJET À DEUX</p><h1>Chaque étape nous rapproche de la montagne.</h1><p>Retrouvez vos tâches, votre budget et toutes les décisions du déménagement dans un espace partagé.</p></div>
+        <div class="auth-landscape"><span class="sun"></span><span class="mountain back"></span><span class="mountain front"></span><span class="cabin">⌂</span></div>
+      </div>
+      <div class="auth-form-wrap">
+        <div class="auth-tabs"><button class="auth-tab active" data-auth-mode="login">Se connecter</button><button class="auth-tab" data-auth-mode="register">Créer un compte</button></div>
+        <form id="authForm">
+          <div id="registerFields" hidden>
+            <label>Votre prénom<input name="displayName" autocomplete="name" placeholder="Marion"></label>
+          </div>
+          <label>Adresse e-mail<input name="email" type="email" required autocomplete="email" placeholder="vous@exemple.fr"></label>
+          <label>Mot de passe<input name="password" type="password" required minlength="6" autocomplete="current-password" placeholder="6 caractères minimum"></label>
+          <div id="joinFields" hidden>
+            <label>Code du foyer <small>(facultatif)</small><input name="householdCode" maxlength="8" placeholder="Ex. AB12CD"><span class="field-help">Laissez vide pour créer un nouveau foyer.</span></label>
+          </div>
+          <p class="auth-error" id="authError"></p>
+          <button class="primary-button auth-submit" type="submit">Se connecter</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <dialog id="accountDialog">
+    <div class="account-content">
+      <div class="dialog-head"><div><p class="eyebrow">ESPACE PARTAGÉ</p><h2>Votre foyer</h2></div><button class="icon-button close-account">×</button></div>
+      <div class="invite-box"><span>Code à partager avec votre moitié</span><strong id="householdCode">—</strong><button class="secondary-button" id="copyCodeButton">Copier le code</button></div>
+      <p class="account-email" id="accountEmail"></p>
+      <button class="secondary-button logout-button" id="logoutButton">Se déconnecter</button>
+    </div>
+  </dialog>
+
   <dialog id="taskDialog">
     <form id="taskForm">
       <div class="dialog-head"><div><p class="eyebrow">NOUVELLE ÉTAPE</p><h2>Ajouter une tâche</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
@@ -167,6 +201,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

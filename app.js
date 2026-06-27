@@ -1,3 +1,18 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, signOut, updateProfile
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot,
+  addDoc, deleteDoc, writeBatch, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
 const seedTasks = [
   ["Nettoyer les PVC de la façade","Façade","Commun","todo","",false,"normal"],
   ["Nettoyer les vitres","Façade","Commun","todo","",false,"normal"],
@@ -46,16 +61,19 @@ const seedExpenses = [
   {id:5,label:"Achats pour le nouveau logement",category:"Achats",planned:1500,spent:0}
 ];
 
-let tasks = JSON.parse(localStorage.getItem("capMontagneTasks")) || seedTasks;
-let expenses = JSON.parse(localStorage.getItem("capMontagneExpenses")) || seedExpenses;
+let tasks = seedTasks;
+let expenses = seedExpenses;
 let currentStatus = "all";
+let activeHouseholdId = null;
+let activeUser = null;
+let authMode = "login";
+let profileCreationInProgress = false;
+let unsubscribeTasks = null;
+let unsubscribeExpenses = null;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
-const save = () => {
-  localStorage.setItem("capMontagneTasks", JSON.stringify(tasks));
-  localStorage.setItem("capMontagneExpenses", JSON.stringify(expenses));
-};
+const setSyncing = value => document.body.classList.toggle("syncing", value);
 const formatMoney = n => new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n);
 const formatDate = d => d ? new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(new Date(`${d}T12:00:00`)) : "Sans date";
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -131,6 +149,107 @@ function goTo(view){
 }
 function openTask(){ $("#taskDialog").showModal(); setTimeout(()=>$("#taskForm input").focus(),50); }
 
+function firebaseMessage(error) {
+  const messages = {
+    "auth/email-already-in-use": "Cette adresse possède déjà un compte.",
+    "auth/invalid-credential": "Adresse e-mail ou mot de passe incorrect.",
+    "auth/invalid-email": "Cette adresse e-mail n’est pas valide.",
+    "auth/weak-password": "Choisissez un mot de passe d’au moins 6 caractères.",
+    "auth/too-many-requests": "Trop de tentatives. Réessayez dans quelques minutes.",
+    "permission-denied": "Accès refusé. Vérifiez les règles Firestore."
+  };
+  return messages[error.code] || error.message || "Une erreur inattendue est survenue.";
+}
+
+function makeHouseholdCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({length:6},()=>alphabet[Math.floor(Math.random()*alphabet.length)]).join("");
+}
+
+async function createHousehold(user, displayName) {
+  let code = makeHouseholdCode();
+  while ((await getDoc(doc(db,"households",code))).exists()) code = makeHouseholdCode();
+  const householdRef = doc(db,"households",code);
+  const batch = writeBatch(db);
+  batch.set(householdRef,{
+    name:"Notre foyer", ownerId:user.uid, code, joinable:true,
+    members:{[user.uid]:true}, memberNames:{[user.uid]:displayName},
+    createdAt:serverTimestamp(), updatedAt:serverTimestamp()
+  });
+  batch.set(doc(db,"users",user.uid),{
+    displayName, email:user.email, householdId:code, createdAt:serverTimestamp()
+  });
+  seedTasks.forEach(task=>{
+    const ref=doc(collection(householdRef,"tasks"));
+    const {id,...data}=task;
+    batch.set(ref,{...data,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  });
+  seedExpenses.forEach(expense=>{
+    const ref=doc(collection(householdRef,"expenses"));
+    const {id,...data}=expense;
+    batch.set(ref,{...data,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  });
+  await batch.commit();
+  return code;
+}
+
+async function joinHousehold(user, displayName, rawCode) {
+  const code=rawCode.trim().toUpperCase();
+  const householdRef=doc(db,"households",code);
+  const household=await getDoc(householdRef);
+  if(!household.exists()) throw new Error("Ce code de foyer n’existe pas.");
+  await updateDoc(householdRef,{
+    [`members.${user.uid}`]:true,
+    [`memberNames.${user.uid}`]:displayName,
+    updatedAt:serverTimestamp()
+  });
+  await setDoc(doc(db,"users",user.uid),{
+    displayName,email:user.email,householdId:code,createdAt:serverTimestamp()
+  });
+  return code;
+}
+
+function stopSubscriptions() {
+  if(unsubscribeTasks) unsubscribeTasks();
+  if(unsubscribeExpenses) unsubscribeExpenses();
+  unsubscribeTasks=null; unsubscribeExpenses=null;
+}
+
+function subscribeToHousehold(householdId) {
+  stopSubscriptions();
+  const householdRef=doc(db,"households",householdId);
+  unsubscribeTasks=onSnapshot(collection(householdRef,"tasks"),snapshot=>{
+    tasks=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderAll(); setSyncing(false);
+  },error=>{setSyncing(false);toast(firebaseMessage(error));});
+  unsubscribeExpenses=onSnapshot(collection(householdRef,"expenses"),snapshot=>{
+    expenses=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderAll(); setSyncing(false);
+  },error=>{setSyncing(false);toast(firebaseMessage(error));});
+}
+
+async function openSession(user) {
+  const profileSnap=await getDoc(doc(db,"users",user.uid));
+  if(!profileSnap.exists()) return;
+  const profile=profileSnap.data();
+  activeUser=user;
+  activeHouseholdId=profile.householdId;
+  $("#currentUserLabel").textContent=profile.displayName || user.email;
+  $("#accountEmail").textContent=user.email;
+  $("#householdCode").textContent=activeHouseholdId;
+  const householdSnap=await getDoc(doc(db,"households",activeHouseholdId));
+  if(householdSnap.exists()) $("#householdLabel").textContent=householdSnap.data().name || "Notre foyer";
+  $("#authGate").classList.add("hidden");
+  setSyncing(true);
+  subscribeToHousehold(activeHouseholdId);
+}
+
+function showAuth() {
+  stopSubscriptions();
+  activeUser=null; activeHouseholdId=null;
+  $("#authGate").classList.remove("hidden");
+}
+
 $$(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.view)));
 $$("[data-go]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.go)));
 $("#addTaskButton").addEventListener("click",openTask);
@@ -140,26 +259,116 @@ $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog
 $("#addExpenseButton").addEventListener("click",()=>$("#expenseDialog").showModal());
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
-$("#taskForm").addEventListener("submit",e=>{
+$("#taskForm").addEventListener("submit",async e=>{
   e.preventDefault(); const data=new FormData(e.currentTarget);
-  tasks.unshift({id:Date.now(),title:data.get("title"),category:data.get("category"),assignee:data.get("assignee"),deadline:data.get("deadline"),priority:data.get("priority"),status:"todo",done:false});
-  save();renderAll();e.currentTarget.reset();$("#taskDialog").close();toast("Tâche ajoutée !");
+  if(!activeHouseholdId) return;
+  setSyncing(true);
+  try {
+    await addDoc(collection(db,"households",activeHouseholdId,"tasks"),{
+      title:data.get("title"),category:data.get("category"),assignee:data.get("assignee"),
+      deadline:data.get("deadline"),priority:data.get("priority"),status:"todo",done:false,
+      createdAt:serverTimestamp(),updatedAt:serverTimestamp()
+    });
+    e.currentTarget.reset();$("#taskDialog").close();toast("Tâche ajoutée !");
+  } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
-$("#expenseForm").addEventListener("submit",e=>{
+$("#expenseForm").addEventListener("submit",async e=>{
   e.preventDefault();const data=new FormData(e.currentTarget);
-  expenses.push({id:Date.now(),label:data.get("label"),category:data.get("category"),planned:Number(data.get("planned")),spent:Number(data.get("spent"))});
-  save();renderAll();e.currentTarget.reset();$("#expenseDialog").close();toast("Dépense ajoutée !");
+  if(!activeHouseholdId) return;
+  setSyncing(true);
+  try {
+    await addDoc(collection(db,"households",activeHouseholdId,"expenses"),{
+      label:data.get("label"),category:data.get("category"),
+      planned:Number(data.get("planned")),spent:Number(data.get("spent")),
+      createdAt:serverTimestamp(),updatedAt:serverTimestamp()
+    });
+    e.currentTarget.reset();$("#expenseDialog").close();toast("Dépense ajoutée !");
+  } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
-document.addEventListener("click",e=>{
+document.addEventListener("click",async e=>{
   const check=e.target.closest(".check");
-  if(check){const id=Number(check.closest("[data-id]").dataset.id),task=tasks.find(t=>t.id===id);task.done=!task.done;task.status=task.done?"done":"todo";save();renderAll();toast(task.done?"Bravo, une étape de plus !":"Tâche rouverte.");}
+  if(check){
+    const id=check.closest("[data-id]").dataset.id,task=tasks.find(t=>String(t.id)===id);
+    if(!task||!activeHouseholdId)return;
+    const done=!task.done;setSyncing(true);
+    try{await updateDoc(doc(db,"households",activeHouseholdId,"tasks",id),{done,status:done?"done":"todo",updatedAt:serverTimestamp()});toast(done?"Bravo, une étape de plus !":"Tâche rouverte.");}
+    catch(error){setSyncing(false);toast(firebaseMessage(error));}
+  }
   const del=e.target.closest(".delete-button");
-  if(del){const id=Number(del.closest("[data-expense]").dataset.expense);expenses=expenses.filter(x=>x.id!==id);save();renderAll();toast("Dépense supprimée.");}
+  if(del){
+    const id=del.closest("[data-expense]").dataset.expense;
+    if(!activeHouseholdId)return;setSyncing(true);
+    try{await deleteDoc(doc(db,"households",activeHouseholdId,"expenses",id));toast("Dépense supprimée.");}
+    catch(error){setSyncing(false);toast(firebaseMessage(error));}
+  }
 });
 $$(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$$(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
+$$(".auth-tab").forEach(button=>button.addEventListener("click",()=>{
+  authMode=button.dataset.authMode;
+  $$(".auth-tab").forEach(tab=>tab.classList.toggle("active",tab===button));
+  const registering=authMode==="register";
+  $("#registerFields").hidden=!registering;
+  $("#joinFields").hidden=!registering;
+  $("#authForm [name='displayName']").required=registering;
+  $("#authForm [name='password']").autocomplete=registering?"new-password":"current-password";
+  $(".auth-submit").textContent=registering?"Créer mon compte":"Se connecter";
+  $("#authError").textContent="";
+}));
+$("#authForm").addEventListener("submit",async event=>{
+  event.preventDefault();
+  const form=event.currentTarget,data=new FormData(form),submit=$(".auth-submit");
+  $("#authError").textContent="";submit.disabled=true;
+  try {
+    if(authMode==="login"){
+      await signInWithEmailAndPassword(auth,data.get("email"),data.get("password"));
+    } else {
+      profileCreationInProgress=true;
+      const credential=auth.currentUser
+        ? {user:auth.currentUser}
+        : await createUserWithEmailAndPassword(auth,data.get("email"),data.get("password"));
+      const displayName=data.get("displayName").trim();
+      await updateProfile(credential.user,{displayName});
+      const joinCode=data.get("householdCode").trim();
+      if(joinCode) await joinHousehold(credential.user,displayName,joinCode);
+      else await createHousehold(credential.user,displayName);
+      profileCreationInProgress=false;
+      await openSession(credential.user);
+      toast("Bienvenue dans votre nouvel espace !");
+    }
+  } catch(error) {
+    profileCreationInProgress=false;
+    $("#authError").textContent=firebaseMessage(error);
+  } finally { submit.disabled=false; }
+});
+$("#userMenuButton").addEventListener("click",()=>$("#accountDialog").showModal());
+$(".close-account").addEventListener("click",()=>$("#accountDialog").close());
+$("#copyCodeButton").addEventListener("click",async()=>{
+  await navigator.clipboard.writeText(activeHouseholdId || "");
+  toast("Code du foyer copié !");
+});
+$("#logoutButton").addEventListener("click",async()=>{
+  $("#accountDialog").close();
+  await signOut(auth);
+});
 
 const now=new Date();
 $("#todayLabel").textContent=new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(now);
 renderAll();
+onAuthStateChanged(auth,async user=>{
+  if(profileCreationInProgress)return;
+  if(!user){showAuth();return;}
+  try {
+    const profile=await getDoc(doc(db,"users",user.uid));
+    if(profile.exists()) await openSession(user);
+    else {
+      authMode="register";
+      $$(".auth-tab").forEach(tab=>tab.classList.toggle("active",tab.dataset.authMode==="register"));
+      $("#registerFields").hidden=false;$("#joinFields").hidden=false;
+      $(".auth-submit").textContent="Finaliser mon compte";
+      $("#authError").textContent="Choisissez votre prénom et votre foyer pour terminer l’inscription.";
+      showAuth();
+    }
+  } catch(error){showAuth();$("#authError").textContent=firebaseMessage(error);}
+});
