@@ -86,7 +86,7 @@ function taskRow(t, full=false) {
     <div><span class="task-name">${esc(t.title)}${t.notes?'<span class="note-indicator" title="Cette tâche contient des notes">●</span>':""}</span><span class="task-meta">${esc(t.category)} · ${overdue?"En retard · ":""}${formatDate(t.deadline)}</span></div>
     <span class="person-pill ${t.assignee}">${esc(t.assignee)}</span>
     ${full?`<b class="status ${t.done?"done":t.status}">${t.done?"Terminée":t.status==="doing"?"En cours":"À faire"}</b>`:""}
-    ${full?`<button class="edit-task" aria-label="Modifier ${esc(t.title)}">✎</button>`:""}
+    <button class="edit-task" aria-label="Modifier ${esc(t.title)}"><span>✎</span> Modifier</button>
   </div>`;
 }
 
