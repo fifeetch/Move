@@ -163,12 +163,11 @@ function firebaseMessage(error) {
 
 function makeHouseholdCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({length:6},()=>alphabet[Math.floor(Math.random()*alphabet.length)]).join("");
+  return Array.from({length:8},()=>alphabet[Math.floor(Math.random()*alphabet.length)]).join("");
 }
 
 async function createHousehold(user, displayName) {
-  let code = makeHouseholdCode();
-  while ((await getDoc(doc(db,"households",code))).exists()) code = makeHouseholdCode();
+  const code = makeHouseholdCode();
   const householdRef = doc(db,"households",code);
   const batch = writeBatch(db);
   batch.set(householdRef,{

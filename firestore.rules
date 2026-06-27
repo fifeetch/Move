@@ -12,6 +12,12 @@ service cloud.firestore {
           .data.members[request.auth.uid] == true;
     }
 
+    function householdMemberAfter(householdId) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/households/$(householdId))
+          .data.members[request.auth.uid] == true;
+    }
+
     match /users/{userId} {
       allow create, read, update: if signedIn() && request.auth.uid == userId;
       allow delete: if false;
@@ -38,7 +44,9 @@ service cloud.firestore {
       allow delete: if false;
 
       match /{collectionName}/{documentId} {
-        allow read, write: if householdMember(householdId)
+        allow read: if householdMember(householdId)
+          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'movingBoxes'];
+        allow write: if householdMemberAfter(householdId)
           && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'movingBoxes'];
       }
     }
