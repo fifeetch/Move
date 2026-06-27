@@ -102,6 +102,7 @@
               <button class="filter active" data-status="all">Toutes</button>
               <button class="filter" data-status="todo">À faire</button>
               <button class="filter" data-status="doing">En cours</button>
+              <button class="filter" data-status="overdue">En retard</button>
               <button class="filter" data-status="done">Terminées</button>
             </div>
             <select id="personFilter" aria-label="Filtrer par personne"><option value="all">Toute l’équipe</option><option value="Marion">Marion</option><option value="Philippe">Philippe</option><option value="Commun">En commun</option></select>
@@ -176,7 +177,7 @@
 
   <dialog id="taskDialog">
     <form id="taskForm">
-      <div class="dialog-head"><div><p class="eyebrow">NOUVELLE ÉTAPE</p><h2>Ajouter une tâche</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow" id="taskDialogEyebrow">NOUVELLE ÉTAPE</p><h2 id="taskDialogTitle">Ajouter une tâche</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
       <label>Intitulé<input name="title" required placeholder="Ex. Réserver le camion"></label>
       <div class="form-row">
         <label>Catégorie<select name="category"><option>Vente de la maison</option><option>Déménagement</option><option>Administratif</option><option>Achats</option><option>Salon</option><option>Cuisine</option><option>Chambre</option><option>Cave</option><option>Extérieur</option></select></label>
@@ -186,7 +187,9 @@
         <label>Échéance<input name="deadline" type="date"></label>
         <label>Priorité<select name="priority"><option value="normal">Normale</option><option value="high">Haute</option></select></label>
       </div>
-      <div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Annuler</button><button class="primary-button" type="submit">Ajouter la tâche</button></div>
+      <label id="taskStatusField" hidden>Statut<select name="status"><option value="todo">À faire</option><option value="doing">En cours</option><option value="done">Terminée</option></select></label>
+      <label>Notes et commentaires<textarea name="notes" rows="4" placeholder="Informations utiles, adresse, détails du rendez-vous…"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteTaskButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-dialog">Annuler</button><button class="primary-button" id="saveTaskButton" type="submit">Ajouter la tâche</button></div>
     </form>
   </dialog>
 
@@ -201,6 +204,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=3"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

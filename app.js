@@ -77,13 +77,16 @@ const setSyncing = value => document.body.classList.toggle("syncing", value);
 const formatMoney = n => new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n);
 const formatDate = d => d ? new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(new Date(`${d}T12:00:00`)) : "Sans date";
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadline}T23:59:59`) < new Date();
 
 function taskRow(t, full=false) {
-  return `<div class="task-row ${t.done?"completed":""}" data-id="${t.id}">
+  const overdue=isOverdue(t);
+  return `<div class="task-row ${full?"full":""} ${t.done?"completed":""} ${overdue?"overdue":""}" data-id="${t.id}">
     <button class="check ${t.done?"done":""}" aria-label="${t.done?"Rouvrir":"Terminer"} la tâche">${t.done?"✓":""}</button>
-    <div><span class="task-name">${esc(t.title)}</span><span class="task-meta">${esc(t.category)} · ${formatDate(t.deadline)}</span></div>
+    <div><span class="task-name">${esc(t.title)}${t.notes?'<span class="note-indicator" title="Cette tâche contient des notes">●</span>':""}</span><span class="task-meta">${esc(t.category)} · ${overdue?"En retard · ":""}${formatDate(t.deadline)}</span></div>
     <span class="person-pill ${t.assignee}">${esc(t.assignee)}</span>
     ${full?`<b class="status ${t.done?"done":t.status}">${t.done?"Terminée":t.status==="doing"?"En cours":"À faire"}</b>`:""}
+    ${full?`<button class="edit-task" aria-label="Modifier ${esc(t.title)}">✎</button>`:""}
   </div>`;
 }
 
@@ -119,7 +122,8 @@ function renderDashboard() {
 function renderTasks() {
   const person=$("#personFilter").value;
   const query=$("#globalSearch").value.toLowerCase().trim();
-  const filtered=tasks.filter(t=>(currentStatus==="all"||(currentStatus==="done"?t.done:!t.done&&t.status===currentStatus))&&(person==="all"||t.assignee===person)&&(t.title.toLowerCase().includes(query)||t.category.toLowerCase().includes(query)));
+  const filtered=tasks.filter(t=>(currentStatus==="all"||(currentStatus==="done"?t.done:currentStatus==="overdue"?isOverdue(t):!t.done&&t.status===currentStatus))&&(person==="all"||t.assignee===person)&&(t.title.toLowerCase().includes(query)||t.category.toLowerCase().includes(query)||(t.notes||"").toLowerCase().includes(query)))
+    .sort((a,b)=>a.done-b.done||(a.deadline||"9999").localeCompare(b.deadline||"9999")||a.title.localeCompare(b.title));
   const grouped=Object.groupBy ? Object.groupBy(filtered,t=>t.category) : filtered.reduce((a,t)=>((a[t.category]??=[]).push(t),a),{});
   $("#taskGroups").innerHTML=Object.keys(grouped).length?Object.entries(grouped).sort().map(([category,list])=>`<section class="panel task-group"><h3>${esc(category)} · ${list.length}</h3>${list.map(t=>taskRow(t,true)).join("")}</section>`).join(""):`<div class="empty-state">Aucune tâche ne correspond à ces filtres.</div>`;
 }
@@ -147,7 +151,25 @@ function goTo(view){
   $$(".nav-item[data-view]").forEach(n=>n.classList.toggle("active",n.dataset.view===view));
   $("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});
 }
-function openTask(){ $("#taskDialog").showModal(); setTimeout(()=>$("#taskForm input").focus(),50); }
+function openTask(task=null){
+  const form=$("#taskForm"),editing=Boolean(task);
+  form.reset();form.dataset.editing=editing?String(task.id):"";
+  $("#taskDialogTitle").textContent=editing?"Modifier la tâche":"Ajouter une tâche";
+  $("#taskDialogEyebrow").textContent=editing?"DÉTAILS DE LA TÂCHE":"NOUVELLE ÉTAPE";
+  $("#saveTaskButton").textContent=editing?"Enregistrer":"Ajouter la tâche";
+  $("#deleteTaskButton").hidden=!editing;$("#taskStatusField").hidden=!editing;
+  if(editing){
+    form.elements.title.value=task.title||"";
+    form.elements.category.value=task.category||"Déménagement";
+    if(!form.elements.category.value) form.elements.category.add(new Option(task.category,task.category,true,true));
+    form.elements.assignee.value=task.assignee||"Commun";
+    form.elements.deadline.value=task.deadline||"";
+    form.elements.priority.value=task.priority||"normal";
+    form.elements.status.value=task.done?"done":task.status||"todo";
+    form.elements.notes.value=task.notes||"";
+  }
+  $("#taskDialog").showModal();setTimeout(()=>form.elements.title.focus(),50);
+}
 
 function firebaseMessage(error) {
   const messages = {
@@ -251,8 +273,8 @@ function showAuth() {
 
 $$(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.view)));
 $$("[data-go]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.go)));
-$("#addTaskButton").addEventListener("click",openTask);
-$$(".add-task-secondary").forEach(b=>b.addEventListener("click",openTask));
+$("#addTaskButton").addEventListener("click",()=>openTask());
+$$(".add-task-secondary").forEach(b=>b.addEventListener("click",()=>openTask()));
 $$(".close-dialog").forEach(b=>b.addEventListener("click",()=>$("#taskDialog").close()));
 $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog").close()));
 $("#addExpenseButton").addEventListener("click",()=>$("#expenseDialog").showModal());
@@ -261,14 +283,18 @@ $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriver
 $("#taskForm").addEventListener("submit",async e=>{
   e.preventDefault(); const data=new FormData(e.currentTarget);
   if(!activeHouseholdId) return;
+  const editingId=e.currentTarget.dataset.editing;
+  const status=data.get("status")||"todo";
+  const taskData={
+    title:data.get("title").trim(),category:data.get("category"),assignee:data.get("assignee"),
+    deadline:data.get("deadline"),priority:data.get("priority"),status,done:status==="done",
+    notes:data.get("notes").trim(),updatedAt:serverTimestamp()
+  };
   setSyncing(true);
   try {
-    await addDoc(collection(db,"households",activeHouseholdId,"tasks"),{
-      title:data.get("title"),category:data.get("category"),assignee:data.get("assignee"),
-      deadline:data.get("deadline"),priority:data.get("priority"),status:"todo",done:false,
-      createdAt:serverTimestamp(),updatedAt:serverTimestamp()
-    });
-    e.currentTarget.reset();$("#taskDialog").close();toast("Tâche ajoutée !");
+    if(editingId) await updateDoc(doc(db,"households",activeHouseholdId,"tasks",editingId),taskData);
+    else await addDoc(collection(db,"households",activeHouseholdId,"tasks"),{...taskData,status:"todo",done:false,createdAt:serverTimestamp()});
+    e.currentTarget.reset();e.currentTarget.dataset.editing="";$("#taskDialog").close();toast(editingId?"Tâche mise à jour !":"Tâche ajoutée !");
   } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
 $("#expenseForm").addEventListener("submit",async e=>{
@@ -285,6 +311,12 @@ $("#expenseForm").addEventListener("submit",async e=>{
   } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
 document.addEventListener("click",async e=>{
+  const edit=e.target.closest(".edit-task");
+  if(edit){
+    const id=edit.closest("[data-id]").dataset.id,task=tasks.find(t=>String(t.id)===id);
+    if(task)openTask(task);
+    return;
+  }
   const check=e.target.closest(".check");
   if(check){
     const id=check.closest("[data-id]").dataset.id,task=tasks.find(t=>String(t.id)===id);
@@ -300,6 +332,13 @@ document.addEventListener("click",async e=>{
     try{await deleteDoc(doc(db,"households",activeHouseholdId,"expenses",id));toast("Dépense supprimée.");}
     catch(error){setSyncing(false);toast(firebaseMessage(error));}
   }
+});
+$("#deleteTaskButton").addEventListener("click",async()=>{
+  const id=$("#taskForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement cette tâche ?"))return;
+  setSyncing(true);
+  try{await deleteDoc(doc(db,"households",activeHouseholdId,"tasks",id));$("#taskDialog").close();toast("Tâche supprimée.");}
+  catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 $$(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$$(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#personFilter").addEventListener("change",renderTasks);
