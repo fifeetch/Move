@@ -14,7 +14,7 @@ python -m http.server 8000
 
 Puis ouvrez `http://localhost:8000`.
 
-Les données sont actuellement conservées dans le `localStorage` du navigateur. Elles restent donc sur l’appareil utilisé.
+Les données sont synchronisées avec Firebase Authentication et Cloud Firestore. Chaque utilisateur se connecte avec son adresse e-mail et rejoint un foyer partagé grâce à un code.
 
 ## Publier sur GitHub Pages
 
@@ -22,14 +22,17 @@ Les données sont actuellement conservées dans le `localStorage` du navigateur.
 2. Ouvrir **Settings → Pages**.
 3. Choisir **Deploy from a branch**, puis la branche `main` et le dossier `/root`.
 
-## Étape suivante : Firebase
+## Configuration Firebase
 
-La structure est prête à évoluer vers Firebase :
+Le projet utilise :
 
-- **Firebase Authentication** pour créer les comptes de Marion et Philippe ;
-- **Cloud Firestore** pour synchroniser tâches, dépenses, contacts et documents ;
-- un champ `householdId` sur chaque donnée pour isoler chaque foyer ;
-- des règles Firestore limitant l’accès aux membres du foyer ;
-- **Firebase Hosting** pour publier l’application.
+- **Firebase Authentication** avec adresse e-mail et mot de passe ;
+- **Cloud Firestore** pour synchroniser les tâches et les dépenses ;
+- une séparation des données par foyer ;
+- des règles Firestore limitant l’accès aux membres du foyer.
 
-Avant cette migration, les appels `localStorage` de `app.js` seront remplacés par des lectures et écritures Firestore. Il faudra également ajouter un écran de connexion et un fichier de configuration Firebase.
+Les règles sont conservées dans `firestore.rules` et peuvent être déployées avec :
+
+```powershell
+firebase deploy --only firestore:rules --project cap-montagne
+```
