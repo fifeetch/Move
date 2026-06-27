@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#173a35">
+  <title>Cap Montagne — Notre déménagement</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">⌁</div>
+        <div><strong>Cap Montagne</strong><span>Notre nouveau départ</span></div>
+      </div>
+      <nav aria-label="Navigation principale">
+        <button class="nav-item active" data-view="dashboard"><span>◫</span> Vue d’ensemble</button>
+        <button class="nav-item" data-view="tasks"><span>✓</span> Toutes les tâches <b id="navTaskCount">0</b></button>
+        <button class="nav-item" data-view="sale"><span>⌂</span> Vente de la maison</button>
+        <button class="nav-item" data-view="move"><span>▣</span> Déménagement</button>
+        <button class="nav-item" data-view="budget"><span>€</span> Budget & achats</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="couple-card">
+          <div class="avatars"><span class="avatar marion">M</span><span class="avatar philippe">P</span></div>
+          <div><strong>Marion & Philippe</strong><span>Espace partagé</span></div>
+        </div>
+        <button class="nav-item" id="settingsButton"><span>⚙</span> Paramètres</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" aria-label="Ouvrir le menu">☰</button>
+        <div class="today"><span id="todayLabel"></span><strong>Bonjour, l’équipe 👋</strong></div>
+        <div class="top-actions">
+          <label class="search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Rechercher une tâche…"></label>
+          <button class="primary-button" id="addTaskButton"><span>＋</span> Ajouter une tâche</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="dashboardView">
+          <div class="hero">
+            <div>
+              <p class="eyebrow">PROJET DE VIE · ÉTÉ 2026</p>
+              <h1>Direction la montagne.</h1>
+              <p>Un seul endroit pour avancer sereinement, étape après étape.</p>
+            </div>
+            <div class="hero-mountains" aria-hidden="true">
+              <span class="sun"></span><span class="mountain back"></span><span class="mountain front"></span><span class="cabin">⌂</span>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card">
+              <div class="stat-head"><span>Progression globale</span><i class="stat-icon green">↗</i></div>
+              <div class="stat-value"><strong id="progressPercent">0%</strong><small id="progressCaption">0 tâche terminée</small></div>
+              <div class="progress"><span id="progressBar"></span></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-head"><span>À faire</span><i class="stat-icon sand">✓</i></div>
+              <div class="stat-value"><strong id="todoCount">0</strong><small>tâches restantes</small></div>
+              <div class="mini-people"><span class="dot marion-bg"></span><span id="marionCount">0 pour Marion</span><span class="dot philippe-bg"></span><span id="philippeCount">0 pour Philippe</span></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-head"><span>Budget prévu</span><i class="stat-icon rust">€</i></div>
+              <div class="stat-value"><strong id="budgetTotal">0 €</strong><small id="budgetSpent">0 € dépensés</small></div>
+              <div class="progress budget"><span id="budgetBar"></span></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-head"><span>Prochaine échéance</span><i class="stat-icon blue">◷</i></div>
+              <div class="deadline"><strong>15</strong><div><b>JUILLET</b><span>Dossier notaire</span></div></div>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="panel priority-panel">
+              <div class="panel-heading"><div><p class="eyebrow">À NE PAS MANQUER</p><h2>Priorités de la semaine</h2></div><button class="text-button" data-go="tasks">Voir tout →</button></div>
+              <div id="priorityList" class="priority-list"></div>
+            </section>
+            <section class="panel steps-panel">
+              <div class="panel-heading"><div><p class="eyebrow">LE CHEMIN</p><h2>Les grandes étapes</h2></div></div>
+              <div id="stepsList" class="steps-list"></div>
+            </section>
+          </div>
+
+          <section class="panel rooms-panel">
+            <div class="panel-heading"><div><p class="eyebrow">TRI & PRÉPARATION</p><h2>Avancement par espace</h2></div><button class="text-button" data-go="tasks">Toutes les pièces →</button></div>
+            <div id="roomCards" class="room-grid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="tasksView">
+          <div class="page-title"><div><p class="eyebrow">ORGANISATION</p><h1>Toutes les tâches</h1><p>La liste complète, claire et partagée.</p></div><button class="primary-button add-task-secondary">＋ Nouvelle tâche</button></div>
+          <div class="toolbar">
+            <div class="filter-group" id="statusFilters">
+              <button class="filter active" data-status="all">Toutes</button>
+              <button class="filter" data-status="todo">À faire</button>
+              <button class="filter" data-status="doing">En cours</button>
+              <button class="filter" data-status="done">Terminées</button>
+            </div>
+            <select id="personFilter" aria-label="Filtrer par personne"><option value="all">Toute l’équipe</option><option value="Marion">Marion</option><option value="Philippe">Philippe</option><option value="Commun">En commun</option></select>
+          </div>
+          <div id="taskGroups" class="task-groups"></div>
+        </section>
+
+        <section class="view" id="saleView">
+          <div class="page-title"><div><p class="eyebrow">VENTE</p><h1>La maison</h1><p>Du premier rendez-vous jusqu’à la remise des clés.</p></div></div>
+          <div class="dashboard-grid">
+            <section class="panel"><div class="panel-heading"><h2>Parcours de vente</h2></div><div id="saleTimeline" class="timeline"></div></section>
+            <section class="panel contact-panel"><p class="eyebrow">CONTACTS</p><h2>Les interlocuteurs</h2><div class="empty-contact">＋<strong>Ajouter l’agence</strong><span>Coordonnées et mandat</span></div><div class="empty-contact">＋<strong>Ajouter le notaire</strong><span>Coordonnées et dossier</span></div></section>
+          </div>
+          <section class="panel document-panel"><div class="panel-heading"><h2>Documents importants</h2><button class="text-button">＋ Ajouter</button></div><div class="document-row"><span>▤</span><div><strong>Dossier notaire</strong><small>À compléter</small></div><b class="status doing">En cours</b></div><div class="document-row"><span>▤</span><div><strong>Diagnostics immobiliers</strong><small>Rendez-vous à programmer</small></div><b class="status todo">À faire</b></div></section>
+        </section>
+
+        <section class="view" id="moveView">
+          <div class="page-title"><div><p class="eyebrow">LOGISTIQUE</p><h1>Le déménagement</h1><p>Cartons, prestataires et démarches : tout est ici.</p></div></div>
+          <div class="placeholder-grid">
+            <article class="feature-card"><span>▦</span><h2>Cartons & inventaire</h2><p>Suivre les cartons par pièce et noter leur contenu.</p><button class="text-button add-task-secondary">Commencer →</button></article>
+            <article class="feature-card"><span>▰</span><h2>Transport</h2><p>Comparer les devis, réserver un véhicule ou un déménageur.</p><button class="text-button" data-go="budget">Voir le budget →</button></article>
+            <article class="feature-card"><span>✉</span><h2>Changement d’adresse</h2><p>Énergie, assurances, courrier et administrations.</p><button class="text-button add-task-secondary">Ajouter une démarche →</button></article>
+          </div>
+        </section>
+
+        <section class="view" id="budgetView">
+          <div class="page-title"><div><p class="eyebrow">FINANCES</p><h1>Budget & achats</h1><p>Prévoir, comparer et garder les dépenses sous contrôle.</p></div><button class="primary-button" id="addExpenseButton">＋ Ajouter une dépense</button></div>
+          <div class="stats-grid budget-stats">
+            <article class="stat-card"><span>Budget total</span><strong id="budgetPageTotal">0 €</strong></article>
+            <article class="stat-card"><span>Dépensé</span><strong id="budgetPageSpent">0 €</strong></article>
+            <article class="stat-card"><span>Reste prévu</span><strong id="budgetRemaining">0 €</strong></article>
+          </div>
+          <section class="panel"><div class="panel-heading"><h2>Dépenses prévues</h2></div><div id="expenseList" class="expense-list"></div></section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="taskDialog">
+    <form id="taskForm">
+      <div class="dialog-head"><div><p class="eyebrow">NOUVELLE ÉTAPE</p><h2>Ajouter une tâche</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
+      <label>Intitulé<input name="title" required placeholder="Ex. Réserver le camion"></label>
+      <div class="form-row">
+        <label>Catégorie<select name="category"><option>Vente de la maison</option><option>Déménagement</option><option>Administratif</option><option>Achats</option><option>Salon</option><option>Cuisine</option><option>Chambre</option><option>Cave</option><option>Extérieur</option></select></label>
+        <label>Responsable<select name="assignee"><option>Commun</option><option>Marion</option><option>Philippe</option></select></label>
+      </div>
+      <div class="form-row">
+        <label>Échéance<input name="deadline" type="date"></label>
+        <label>Priorité<select name="priority"><option value="normal">Normale</option><option value="high">Haute</option></select></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Annuler</button><button class="primary-button" type="submit">Ajouter la tâche</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="expenseDialog">
+    <form id="expenseForm">
+      <div class="dialog-head"><div><p class="eyebrow">BUDGET</p><h2>Ajouter une dépense</h2></div><button type="button" class="icon-button close-expense">×</button></div>
+      <label>Libellé<input name="label" required placeholder="Ex. Location du camion"></label>
+      <div class="form-row"><label>Montant prévu (€)<input name="planned" required type="number" min="0"></label><label>Déjà dépensé (€)<input name="spent" type="number" min="0" value="0"></label></div>
+      <label>Catégorie<select name="category"><option>Transport</option><option>Cartons</option><option>Travaux</option><option>Achats</option><option>Administratif</option><option>Autre</option></select></label>
+      <div class="dialog-actions"><button type="button" class="secondary-button close-expense">Annuler</button><button class="primary-button" type="submit">Ajouter</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
