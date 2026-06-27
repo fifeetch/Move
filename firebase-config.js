@@ -1,5 +1,5 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyB44vaFBU5xByi2Q8RMukf2SbcZ2FwvVdx8",
+  apiKey: "AIzaSyB44vaFBU5xByi2Q8RMukf2SbcZ2FwVdx8",
   authDomain: "cap-montagne.firebaseapp.com",
   projectId: "cap-montagne",
   storageBucket: "cap-montagne.firebasestorage.app",
