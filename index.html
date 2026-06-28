@@ -134,8 +134,12 @@
             <article class="stat-card"><span>Budget total</span><strong id="budgetPageTotal">0 €</strong></article>
             <article class="stat-card"><span>Dépensé</span><strong id="budgetPageSpent">0 €</strong></article>
             <article class="stat-card"><span>Reste prévu</span><strong id="budgetRemaining">0 €</strong></article>
+            <article class="stat-card alert-stat"><span>Dépassements</span><strong id="budgetOverrun">0 €</strong></article>
           </div>
-          <section class="panel"><div class="panel-heading"><h2>Dépenses prévues</h2></div><div id="expenseList" class="expense-list"></div></section>
+          <div class="budget-layout">
+            <section class="panel"><div class="panel-heading"><div><p class="eyebrow">SUIVI</p><h2>Dépenses et achats</h2></div><div class="filter-group" id="budgetFilters"><button class="filter active" data-budget-type="all">Tout</button><button class="filter" data-budget-type="expense">Dépenses</button><button class="filter" data-budget-type="purchase">Achats</button></div></div><div id="expenseList" class="expense-list"></div></section>
+            <section class="panel category-panel"><div class="panel-heading"><div><p class="eyebrow">RÉPARTITION</p><h2>Par catégorie</h2></div></div><div id="categoryBreakdown" class="category-breakdown"></div></section>
+          </div>
         </section>
       </div>
     </main>
@@ -191,11 +195,13 @@
 
   <dialog id="expenseDialog">
     <form id="expenseForm">
-      <div class="dialog-head"><div><p class="eyebrow">BUDGET</p><h2>Ajouter une dépense</h2></div><button type="button" class="icon-button close-expense">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">BUDGET</p><h2 id="expenseDialogTitle">Ajouter une dépense</h2></div><button type="button" class="icon-button close-expense">×</button></div>
       <label>Libellé<input name="label" required placeholder="Ex. Location du camion"></label>
       <div class="form-row"><label>Montant prévu (€)<input name="planned" required type="number" min="0"></label><label>Déjà dépensé (€)<input name="spent" type="number" min="0" value="0"></label></div>
-      <label>Catégorie<select name="category"><option>Transport</option><option>Cartons</option><option>Travaux</option><option>Achats</option><option>Administratif</option><option>Autre</option></select></label>
-      <div class="dialog-actions"><button type="button" class="secondary-button close-expense">Annuler</button><button class="primary-button" type="submit">Ajouter</button></div>
+      <div class="form-row"><label>Nature<select name="type"><option value="expense">Dépense</option><option value="purchase">Achat</option></select></label><label>Catégorie<select name="category"><option>Transport</option><option>Cartons</option><option>Travaux</option><option>Mobilier</option><option>Administratif</option><option>Autre</option></select></label></div>
+      <div class="form-row"><label>Statut<select name="status"><option value="planned">À prévoir</option><option value="ordered">Commandé</option><option value="paid">Payé</option></select></label><label>Responsable<select name="assignee"><option>Commun</option><option>Marion</option><option>Philippe</option></select></label></div>
+      <label>Notes<textarea name="notes" rows="3" placeholder="Devis, magasin, référence…"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteExpenseButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-expense">Annuler</button><button class="primary-button" id="saveExpenseButton" type="submit">Ajouter</button></div>
     </form>
   </dialog>
 
@@ -222,6 +228,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>

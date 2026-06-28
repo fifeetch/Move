@@ -65,6 +65,7 @@ let expenses = seedExpenses;
 let contacts = [];
 let saleDocuments = [];
 let currentStatus = "all";
+let currentBudgetType = "all";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -141,13 +142,22 @@ function renderSale() {
 
 function renderBudget() {
   const planned=expenses.reduce((s,e)=>s+Number(e.planned),0), spent=expenses.reduce((s,e)=>s+Number(e.spent),0);
+  const overrun=expenses.reduce((s,e)=>s+Math.max(0,Number(e.spent)-Number(e.planned)),0);
   $("#budgetTotal").textContent=formatMoney(planned);
   $("#budgetSpent").textContent=`${formatMoney(spent)} dépensés`;
   $("#budgetBar").style.width=`${Math.min(100,planned?spent/planned*100:0)}%`;
   $("#budgetPageTotal").textContent=formatMoney(planned);
   $("#budgetPageSpent").textContent=formatMoney(spent);
   $("#budgetRemaining").textContent=formatMoney(planned-spent);
-  $("#expenseList").innerHTML=expenses.map(e=>`<div class="expense-row" data-expense="${e.id}"><div><strong>${esc(e.label)}</strong><small>${esc(e.category)}</small></div><b>${formatMoney(e.planned)} prévus</b><b class="spent-col">${formatMoney(e.spent)} dépensés</b><button class="delete-button" aria-label="Supprimer">×</button></div>`).join("") || `<div class="empty-state">Aucune dépense enregistrée.</div>`;
+  $("#budgetOverrun").textContent=formatMoney(overrun);
+  const filtered=expenses.filter(item=>currentBudgetType==="all"||(item.type||"expense")===currentBudgetType);
+  $("#expenseList").innerHTML=filtered.map(e=>{
+    const delta=Number(e.planned)-Number(e.spent),over=delta<0,status=e.status||"planned";
+    return `<div class="expense-row ${over?"over-budget":""}" data-expense="${e.id}"><div><strong>${esc(e.label)}</strong><small>${esc(e.category)} · ${esc(e.assignee||"Commun")} · ${status==="paid"?"Payé":status==="ordered"?"Commandé":"À prévoir"}</small></div><span class="budget-kind ${(e.type||"expense")==="purchase"?"purchase":""}">${(e.type||"expense")==="purchase"?"Achat":"Dépense"}</span><b>${formatMoney(e.planned)} prévus</b><b class="spent-col">${formatMoney(e.spent)} dépensés</b><span class="expense-delta ${over?"negative":""}">${over?"Dépassement ":"Reste "}${formatMoney(Math.abs(delta))}</span><button class="edit-task edit-expense"><span>✎</span> Modifier</button></div>`;
+  }).join("") || `<div class="empty-state">Aucun élément dans cette vue.</div>`;
+  const byCategory=expenses.reduce((acc,item)=>{const key=item.category||"Autre";acc[key]??={planned:0,spent:0};acc[key].planned+=Number(item.planned);acc[key].spent+=Number(item.spent);return acc;},{});
+  const maxCategory=Math.max(1,...Object.values(byCategory).map(value=>value.planned));
+  $("#categoryBreakdown").innerHTML=Object.entries(byCategory).sort((a,b)=>b[1].planned-a[1].planned).map(([category,value])=>`<div class="category-item"><header><strong>${esc(category)}</strong><span>${formatMoney(value.planned)}</span></header><div class="progress"><span style="width:${Math.round(value.planned/maxCategory*100)}%"></span></div><small>${formatMoney(value.spent)} dépensés</small></div>`).join("")||`<div class="empty-state">Le graphique apparaîtra avec les premières dépenses.</div>`;
 }
 
 function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();}
@@ -191,6 +201,18 @@ function openDocument(item=null){
   $("#deleteDocumentButton").hidden=!editing;
   if(editing) ["name","status","deadline","url","notes"].forEach(key=>form.elements[key].value=item[key]||"");
   $("#documentDialog").showModal();
+}
+
+function openExpense(item=null){
+  const form=$("#expenseForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
+  $("#expenseDialogTitle").textContent=editing?"Modifier l’élément":"Ajouter une dépense";
+  $("#saveExpenseButton").textContent=editing?"Enregistrer":"Ajouter";
+  $("#deleteExpenseButton").hidden=!editing;
+  if(editing){
+    ["label","planned","spent","category","type","status","assignee","notes"].forEach(key=>form.elements[key].value=item[key]??({type:"expense",status:"planned",assignee:"Commun",notes:""}[key]||""));
+    if(!form.elements.category.value)form.elements.category.add(new Option(item.category,item.category,true,true));
+  }
+  $("#expenseDialog").showModal();
 }
 
 function firebaseMessage(error) {
@@ -299,7 +321,7 @@ $("#addTaskButton").addEventListener("click",()=>openTask());
 $$(".add-task-secondary").forEach(b=>b.addEventListener("click",()=>openTask()));
 $$(".close-dialog").forEach(b=>b.addEventListener("click",()=>$("#taskDialog").close()));
 $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog").close()));
-$("#addExpenseButton").addEventListener("click",()=>$("#expenseDialog").showModal());
+$("#addExpenseButton").addEventListener("click",()=>openExpense());
 $("#addContactButton").addEventListener("click",()=>openContact());
 $("#addDocumentButton").addEventListener("click",()=>openDocument());
 $$(".close-contact").forEach(button=>button.addEventListener("click",()=>$("#contactDialog").close()));
@@ -326,14 +348,13 @@ $("#taskForm").addEventListener("submit",async e=>{
 $("#expenseForm").addEventListener("submit",async e=>{
   e.preventDefault();const data=new FormData(e.currentTarget);
   if(!activeHouseholdId) return;
+  const id=e.currentTarget.dataset.editing;
+  const payload={label:data.get("label").trim(),category:data.get("category"),planned:Number(data.get("planned")),spent:Number(data.get("spent")),type:data.get("type"),status:data.get("status"),assignee:data.get("assignee"),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
   setSyncing(true);
   try {
-    await addDoc(collection(db,"households",activeHouseholdId,"expenses"),{
-      label:data.get("label"),category:data.get("category"),
-      planned:Number(data.get("planned")),spent:Number(data.get("spent")),
-      createdAt:serverTimestamp(),updatedAt:serverTimestamp()
-    });
-    e.currentTarget.reset();$("#expenseDialog").close();toast("Dépense ajoutée !");
+    if(id)await updateDoc(doc(db,"households",activeHouseholdId,"expenses",id),payload);
+    else await addDoc(collection(db,"households",activeHouseholdId,"expenses"),{...payload,createdAt:serverTimestamp()});
+    e.currentTarget.reset();$("#expenseDialog").close();toast(id?"Élément mis à jour !":"Élément ajouté !");
   } catch(error) { setSyncing(false);toast(firebaseMessage(error)); }
 });
 $("#contactForm").addEventListener("submit",async event=>{
@@ -359,6 +380,12 @@ $("#documentForm").addEventListener("submit",async event=>{
   }catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 document.addEventListener("click",async e=>{
+  const expenseEdit=e.target.closest(".edit-expense");
+  if(expenseEdit){
+    const id=expenseEdit.closest("[data-expense]").dataset.expense;
+    const item=expenses.find(expense=>String(expense.id)===id);
+    if(item)openExpense(item);return;
+  }
   const saleEdit=e.target.closest(".edit-sale-task");
   if(saleEdit){
     const task=tasks.find(item=>String(item.id)===saleEdit.dataset.taskId);
@@ -391,13 +418,6 @@ document.addEventListener("click",async e=>{
     try{await updateDoc(doc(db,"households",activeHouseholdId,"tasks",id),{done,status:done?"done":"todo",updatedAt:serverTimestamp()});toast(done?"Bravo, une étape de plus !":"Tâche rouverte.");}
     catch(error){setSyncing(false);toast(firebaseMessage(error));}
   }
-  const del=e.target.closest(".delete-button");
-  if(del){
-    const id=del.closest("[data-expense]").dataset.expense;
-    if(!activeHouseholdId)return;setSyncing(true);
-    try{await deleteDoc(doc(db,"households",activeHouseholdId,"expenses",id));toast("Dépense supprimée.");}
-    catch(error){setSyncing(false);toast(firebaseMessage(error));}
-  }
 });
 $("#deleteTaskButton").addEventListener("click",async()=>{
   const id=$("#taskForm").dataset.editing;
@@ -416,7 +436,13 @@ $("#deleteDocumentButton").addEventListener("click",async()=>{
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce document ?"))return;
   setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
-$$(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$$(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
+$("#deleteExpenseButton").addEventListener("click",async()=>{
+  const id=$("#expenseForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement cet élément du budget ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"expenses",id));$("#expenseDialog").close();toast("Élément supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
+$("#statusFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$("#statusFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
+$("#budgetFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBudgetType=b.dataset.budgetType;$("#budgetFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderBudget();}));
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
 $("#authForm").addEventListener("submit",async event=>{
