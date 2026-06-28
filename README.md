@@ -27,12 +27,21 @@ Les données sont synchronisées avec Firebase Authentication et Cloud Firestore
 Le projet utilise :
 
 - **Firebase Authentication** avec adresse e-mail et mot de passe ;
-- **Cloud Firestore** pour synchroniser les tâches et les dépenses ;
+- **Cloud Firestore** pour synchroniser les tâches, dépenses, cartons, contacts et documents ;
+- **Firebase Storage** pour les PDF et images liés au dossier de vente ;
 - une séparation des données par foyer ;
 - des règles Firestore limitant l’accès aux membres du foyer.
+
+Le site est également une Progressive Web App installable. Les rappels locaux signalent les échéances à moins de trois jours lorsque l’application est utilisée.
 
 Les règles sont conservées dans `firestore.rules` et peuvent être déployées avec :
 
 ```powershell
 firebase deploy --only firestore:rules --project cap-montagne
+```
+
+Après avoir initialisé Storage dans la console Firebase :
+
+```powershell
+firebase deploy --only storage --project cap-montagne
 ```

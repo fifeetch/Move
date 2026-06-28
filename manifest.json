@@ -1,0 +1,18 @@
+{
+  "name": "Cap Montagne",
+  "short_name": "Cap Montagne",
+  "description": "Organisation partagée de notre déménagement",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f1e8",
+  "theme_color": "#173a35",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

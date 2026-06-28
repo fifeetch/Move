@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#173a35">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Cap Montagne — Notre déménagement</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -74,7 +77,7 @@
             </article>
             <article class="stat-card">
               <div class="stat-head"><span>Prochaine échéance</span><i class="stat-icon blue">◷</i></div>
-              <div class="deadline"><strong>15</strong><div><b>JUILLET</b><span>Dossier notaire</span></div></div>
+              <div class="deadline"><strong id="nextDeadlineDay">—</strong><div><b id="nextDeadlineMonth">À VENIR</b><span id="nextDeadlineTitle">Aucune échéance</span></div></div>
             </article>
           </div>
 
@@ -120,11 +123,19 @@
         </section>
 
         <section class="view" id="moveView">
-          <div class="page-title"><div><p class="eyebrow">LOGISTIQUE</p><h1>Le déménagement</h1><p>Cartons, prestataires et démarches : tout est ici.</p></div></div>
-          <div class="placeholder-grid">
-            <article class="feature-card"><span>▦</span><h2>Cartons & inventaire</h2><p>Suivre les cartons par pièce et noter leur contenu.</p><button class="text-button add-task-secondary">Commencer →</button></article>
-            <article class="feature-card"><span>▰</span><h2>Transport</h2><p>Comparer les devis, réserver un véhicule ou un déménageur.</p><button class="text-button" data-go="budget">Voir le budget →</button></article>
-            <article class="feature-card"><span>✉</span><h2>Changement d’adresse</h2><p>Énergie, assurances, courrier et administrations.</p><button class="text-button add-task-secondary">Ajouter une démarche →</button></article>
+          <div class="page-title"><div><p class="eyebrow">LOGISTIQUE</p><h1>Le déménagement</h1><p>Cartons, transport et démarches : tout est ici.</p></div><button class="primary-button" id="addBoxButton">＋ Ajouter un carton</button></div>
+          <div class="stats-grid move-stats">
+            <article class="stat-card"><span>Total des cartons</span><strong id="boxTotal">0</strong></article>
+            <article class="stat-card"><span>Prêts à partir</span><strong id="boxReady">0</strong></article>
+            <article class="stat-card"><span>Transportés</span><strong id="boxMoved">0</strong></article>
+            <article class="stat-card"><span>Déballés</span><strong id="boxUnpacked">0</strong></article>
+          </div>
+          <div class="move-layout">
+            <section class="panel"><div class="panel-heading"><div><p class="eyebrow">INVENTAIRE</p><h2>Les cartons</h2></div><div class="filter-group" id="boxFilters"><button class="filter active" data-box-status="all">Tous</button><button class="filter" data-box-status="packing">À préparer</button><button class="filter" data-box-status="ready">Prêts</button><button class="filter" data-box-status="moved">Transportés</button></div></div><div id="boxList" class="box-list"></div></section>
+            <aside class="move-side">
+              <section class="panel"><div class="panel-heading"><h2>Transport</h2><button class="text-button" data-go="budget">Budget →</button></div><div id="transportSummary" class="move-summary"></div></section>
+              <section class="panel"><div class="panel-heading"><h2>Changement d’adresse</h2><button class="text-button add-task-secondary">＋ Ajouter</button></div><div id="addressTasks" class="compact-tasks"></div></section>
+            </aside>
           </div>
         </section>
 
@@ -171,6 +182,8 @@
       <div class="dialog-head"><div><p class="eyebrow">ESPACE PARTAGÉ</p><h2>Votre foyer</h2></div><button class="icon-button close-account">×</button></div>
       <div class="invite-box"><span>Code à partager avec votre moitié</span><strong id="householdCode">—</strong><button class="secondary-button" id="copyCodeButton">Copier le code</button></div>
       <p class="account-email" id="accountEmail"></p>
+      <button class="primary-button account-action" id="installAppButton" hidden>Installer l’application</button>
+      <button class="secondary-button account-action" id="notificationButton">Activer les rappels</button>
       <button class="secondary-button logout-button" id="logoutButton">Se déconnecter</button>
     </div>
   </dialog>
@@ -222,12 +235,24 @@
       <label>Nom du document<input name="name" required placeholder="Ex. Titre de propriété"></label>
       <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Échéance<input name="deadline" type="date"></label></div>
       <label>Lien vers le document <small>(facultatif)</small><input name="url" type="url" placeholder="https://…"></label>
+      <label>Fichier <small>(PDF ou image, 10 Mo maximum)</small><input name="file" type="file" accept=".pdf,image/*"></label>
       <label>Notes<textarea name="notes" rows="3" placeholder="Où le trouver, personne à relancer…"></textarea></label>
       <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteDocumentButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-document">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
     </form>
   </dialog>
 
+  <dialog id="boxDialog">
+    <form id="boxForm">
+      <div class="dialog-head"><div><p class="eyebrow">INVENTAIRE</p><h2 id="boxDialogTitle">Ajouter un carton</h2></div><button type="button" class="icon-button close-box">×</button></div>
+      <div class="form-row"><label>Numéro<input name="number" required placeholder="Ex. 12"></label><label>Pièce<select name="room"><option>Salon</option><option>Cuisine</option><option>Chambre</option><option>Salle de bain</option><option>Cave</option><option>Extérieur</option><option>Autre</option></select></label></div>
+      <label>Contenu<textarea name="contents" rows="3" required placeholder="Livres, vaisselle, linge…"></textarea></label>
+      <div class="form-row"><label>Statut<select name="status"><option value="packing">À préparer</option><option value="ready">Prêt</option><option value="moved">Transporté</option><option value="unpacked">Déballé</option></select></label><label>Responsable<select name="assignee"><option>Commun</option><option>Marion</option><option>Philippe</option></select></label></div>
+      <label>Fragile<select name="fragile"><option value="false">Non</option><option value="true">Oui</option></select></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteBoxButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-box">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

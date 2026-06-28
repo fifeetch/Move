@@ -6,11 +6,15 @@ import {
   getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot,
   addDoc, deleteDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js?v=2";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const seedTasks = [
   ["Nettoyer les PVC de la façade","Façade","Commun","todo","",false,"normal"],
@@ -64,8 +68,10 @@ let tasks = seedTasks;
 let expenses = seedExpenses;
 let contacts = [];
 let saleDocuments = [];
+let movingBoxes = [];
 let currentStatus = "all";
 let currentBudgetType = "all";
+let currentBoxStatus = "all";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -74,6 +80,8 @@ let unsubscribeTasks = null;
 let unsubscribeExpenses = null;
 let unsubscribeContacts = null;
 let unsubscribeDocuments = null;
+let unsubscribeBoxes = null;
+let deferredInstallPrompt = null;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -106,8 +114,17 @@ function renderDashboard() {
   $("#navTaskCount").textContent=left;
   $("#marionCount").textContent=`${tasks.filter(t=>!t.done&&(t.assignee==="Marion"||t.assignee==="Commun")).length} pour Marion`;
   $("#philippeCount").textContent=`${tasks.filter(t=>!t.done&&(t.assignee==="Philippe"||t.assignee==="Commun")).length} pour Philippe`;
-  const priorities=tasks.filter(t=>!t.done&&t.priority==="high").slice(0,5);
+  const priorities=tasks.filter(t=>!t.done&&(t.priority==="high"||isOverdue(t))).sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).slice(0,5);
   $("#priorityList").innerHTML=priorities.map(t=>taskRow(t)).join("") || `<p class="empty-state">Tout est sous contrôle 🌿</p>`;
+  const upcoming=tasks.filter(t=>!t.done&&t.deadline).sort((a,b)=>a.deadline.localeCompare(b.deadline))[0];
+  if(upcoming){
+    const date=new Date(`${upcoming.deadline}T12:00:00`);
+    $("#nextDeadlineDay").textContent=date.getDate();
+    $("#nextDeadlineMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long"}).format(date).toUpperCase();
+    $("#nextDeadlineTitle").textContent=upcoming.title;
+  } else {
+    $("#nextDeadlineDay").textContent="—";$("#nextDeadlineMonth").textContent="À VENIR";$("#nextDeadlineTitle").textContent="Aucune échéance";
+  }
   const steps=[
     ["1","Préparer la maison","Tri et nettoyage"],
     ["2","Vendre la maison","Agence, diagnostics, notaire"],
@@ -115,7 +132,13 @@ function renderDashboard() {
     ["4","Organiser le départ","Cartons et transport"],
     ["5","S’installer","Nouvelles habitudes"]
   ];
-  $("#stepsList").innerHTML=steps.map((s,i)=>`<div class="step ${i>1?"future":""}"><span class="step-number">${s[0]}</span><div><strong>${s[1]}</strong><span>${s[2]}</span></div><b>${i===0?"En cours":i===1?"À suivre":"À venir"}</b></div>`).join("");
+  const stepCategories=[["Tri","Façade","Salon","Chambre","Cave"],["Vente de la maison"],["Nouveau logement"],["Déménagement","Administratif"],[]];
+  $("#stepsList").innerHTML=steps.map((s,i)=>{
+    const list=i===4?movingBoxes.filter(box=>box.status==="unpacked"):tasks.filter(task=>stepCategories[i].some(category=>task.category.includes(category)));
+    const complete=list.length&&list.every(item=>item.done||item.status==="unpacked");
+    const started=list.some(item=>item.done||item.status==="doing"||item.status==="ready"||item.status==="moved");
+    return `<div class="step ${!started&&!complete?"future":""}"><span class="step-number">${complete?"✓":s[0]}</span><div><strong>${s[1]}</strong><span>${s[2]}</span></div><b>${complete?"Terminé":started?"En cours":"À venir"}</b></div>`;
+  }).join("");
   const roomNames=["Façade","Salon","Chambre","Véranda","Cave"];
   $("#roomCards").innerHTML=roomNames.map(name=>{
     const list=tasks.filter(t=>t.category.includes(name));
@@ -160,8 +183,32 @@ function renderBudget() {
   $("#categoryBreakdown").innerHTML=Object.entries(byCategory).sort((a,b)=>b[1].planned-a[1].planned).map(([category,value])=>`<div class="category-item"><header><strong>${esc(category)}</strong><span>${formatMoney(value.planned)}</span></header><div class="progress"><span style="width:${Math.round(value.planned/maxCategory*100)}%"></span></div><small>${formatMoney(value.spent)} dépensés</small></div>`).join("")||`<div class="empty-state">Le graphique apparaîtra avec les premières dépenses.</div>`;
 }
 
-function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();}
+function renderMove(){
+  $("#boxTotal").textContent=movingBoxes.length;
+  $("#boxReady").textContent=movingBoxes.filter(box=>box.status==="ready").length;
+  $("#boxMoved").textContent=movingBoxes.filter(box=>box.status==="moved").length;
+  $("#boxUnpacked").textContent=movingBoxes.filter(box=>box.status==="unpacked").length;
+  const filtered=movingBoxes.filter(box=>currentBoxStatus==="all"||box.status===currentBoxStatus).sort((a,b)=>String(a.number).localeCompare(String(b.number),undefined,{numeric:true}));
+  $("#boxList").innerHTML=filtered.map(box=>`<article class="box-card" data-box-id="${box.id}"><span class="box-number">${esc(box.number)}</span><div><strong>${esc(box.room)}${box.fragile?" · Fragile":""}</strong><small>${esc(box.contents)} · ${box.status==="unpacked"?"Déballé":box.status==="moved"?"Transporté":box.status==="ready"?"Prêt":"À préparer"}</small></div><span class="person-pill ${box.assignee||"Commun"}">${esc(box.assignee||"Commun")}</span><button class="edit-task edit-box"><span>✎</span> Modifier</button></article>`).join("")||`<div class="empty-state">Aucun carton dans cette vue.</div>`;
+  const transport=expenses.filter(item=>item.category==="Transport");
+  $("#transportSummary").innerHTML=`<div class="summary-line"><span>Budget prévu</span><strong>${formatMoney(transport.reduce((sum,item)=>sum+Number(item.planned),0))}</strong></div><div class="summary-line"><span>Déjà dépensé</span><strong>${formatMoney(transport.reduce((sum,item)=>sum+Number(item.spent),0))}</strong></div><div class="summary-line"><span>Éléments suivis</span><strong>${transport.length}</strong></div>`;
+  const address=tasks.filter(task=>task.category==="Administratif").slice(0,6);
+  $("#addressTasks").innerHTML=address.map(task=>`<div class="compact-task ${task.done?"done":""}"><button class="check ${task.done?"done":""}" data-compact-task="${task.id}">${task.done?"✓":""}</button><span>${esc(task.title)}</span></div>`).join("")||`<div class="empty-contact">Aucune démarche enregistrée.</div>`;
+}
+
+function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();renderMove();}
 function toast(message){const el=$("#toast");el.textContent=message;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2300);}
+async function sendDeadlineReminder(){
+  if(!("Notification" in window)||Notification.permission!=="granted"||!("serviceWorker" in navigator))return;
+  const today=new Date().toISOString().slice(0,10);
+  if(localStorage.getItem("capMontagneReminderDate")===today)return;
+  const limit=new Date();limit.setDate(limit.getDate()+3);
+  const urgent=tasks.filter(task=>!task.done&&task.deadline&&new Date(`${task.deadline}T23:59:59`)<=limit).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+  if(!urgent.length)return;
+  const registration=await navigator.serviceWorker.ready;
+  registration.active?.postMessage({type:"SHOW_REMINDER",title:`${urgent.length} échéance${urgent.length>1?"s":""} à surveiller`,body:`${urgent[0].title} · ${formatDate(urgent[0].deadline)}`});
+  localStorage.setItem("capMontagneReminderDate",today);
+}
 function goTo(view){
   $$(".view").forEach(v=>v.classList.remove("active"));$(`#${view}View`).classList.add("active");
   $$(".nav-item[data-view]").forEach(n=>n.classList.toggle("active",n.dataset.view===view));
@@ -215,6 +262,15 @@ function openExpense(item=null){
   $("#expenseDialog").showModal();
 }
 
+function openBox(box=null){
+  const form=$("#boxForm"),editing=Boolean(box);form.reset();form.dataset.editing=editing?box.id:"";
+  $("#boxDialogTitle").textContent=editing?"Modifier le carton":"Ajouter un carton";
+  $("#deleteBoxButton").hidden=!editing;
+  if(editing)["number","room","contents","status","assignee"].forEach(key=>form.elements[key].value=box[key]||"");
+  if(editing)form.elements.fragile.value=String(Boolean(box.fragile));
+  $("#boxDialog").showModal();
+}
+
 function firebaseMessage(error) {
   const messages = {
     "auth/email-already-in-use": "Cette adresse possède déjà un compte.",
@@ -258,7 +314,8 @@ function stopSubscriptions() {
   if(unsubscribeExpenses) unsubscribeExpenses();
   if(unsubscribeContacts) unsubscribeContacts();
   if(unsubscribeDocuments) unsubscribeDocuments();
-  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;
+  if(unsubscribeBoxes) unsubscribeBoxes();
+  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;unsubscribeBoxes=null;
 }
 
 function subscribeToHousehold(householdId) {
@@ -266,7 +323,7 @@ function subscribeToHousehold(householdId) {
   const householdRef=doc(db,"households",householdId);
   unsubscribeTasks=onSnapshot(collection(householdRef,"tasks"),snapshot=>{
     tasks=snapshot.docs.map(item=>({id:item.id,...item.data()}));
-    renderAll(); setSyncing(false);
+    renderAll();sendDeadlineReminder();setSyncing(false);
   },error=>{setSyncing(false);toast(firebaseMessage(error));});
   unsubscribeExpenses=onSnapshot(collection(householdRef,"expenses"),snapshot=>{
     expenses=snapshot.docs.map(item=>({id:item.id,...item.data()}));
@@ -279,6 +336,10 @@ function subscribeToHousehold(householdId) {
   unsubscribeDocuments=onSnapshot(collection(householdRef,"documents"),snapshot=>{
     saleDocuments=snapshot.docs.map(item=>({id:item.id,...item.data()}));
     renderSale();setSyncing(false);
+  },error=>toast(firebaseMessage(error)));
+  unsubscribeBoxes=onSnapshot(collection(householdRef,"movingBoxes"),snapshot=>{
+    movingBoxes=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderMove();renderDashboard();setSyncing(false);
   },error=>toast(firebaseMessage(error)));
 }
 
@@ -324,8 +385,10 @@ $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog
 $("#addExpenseButton").addEventListener("click",()=>openExpense());
 $("#addContactButton").addEventListener("click",()=>openContact());
 $("#addDocumentButton").addEventListener("click",()=>openDocument());
+$("#addBoxButton").addEventListener("click",()=>openBox());
 $$(".close-contact").forEach(button=>button.addEventListener("click",()=>$("#contactDialog").close()));
 $$(".close-document").forEach(button=>button.addEventListener("click",()=>$("#documentDialog").close()));
+$$(".close-box").forEach(button=>button.addEventListener("click",()=>$("#boxDialog").close()));
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
 $("#taskForm").addEventListener("submit",async e=>{
@@ -371,15 +434,43 @@ $("#contactForm").addEventListener("submit",async event=>{
 $("#documentForm").addEventListener("submit",async event=>{
   event.preventDefault();if(!activeHouseholdId)return;
   const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
-  const payload={name:data.get("name").trim(),status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
+  const existing=saleDocuments.find(item=>String(item.id)===id);
+  const payload={name:data.get("name").trim(),status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
+  const file=form.elements.file.files[0];
   setSyncing(true);
   try{
+    if(file){
+      if(file.size>10*1024*1024)throw new Error("Le fichier dépasse 10 Mo.");
+      if(file.type!=="application/pdf"&&!file.type.startsWith("image/"))throw new Error("Seuls les PDF et les images sont acceptés.");
+      if(existing?.storagePath)await deleteObject(storageRef(storage,existing.storagePath)).catch(()=>{});
+      const cleanName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-");
+      payload.storagePath=`households/${activeHouseholdId}/documents/${Date.now()}-${cleanName}`;
+      const uploaded=await uploadBytes(storageRef(storage,payload.storagePath),file,{contentType:file.type});
+      payload.url=await getDownloadURL(uploaded.ref);payload.fileName=file.name;
+    }
     if(id)await updateDoc(doc(db,"households",activeHouseholdId,"documents",id),payload);
     else await addDoc(collection(db,"households",activeHouseholdId,"documents"),{...payload,createdAt:serverTimestamp()});
     $("#documentDialog").close();toast(id?"Document mis à jour !":"Document ajouté !");
   }catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
+$("#boxForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(!activeHouseholdId)return;
+  const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
+  const payload={number:data.get("number").trim(),room:data.get("room"),contents:data.get("contents").trim(),status:data.get("status"),assignee:data.get("assignee"),fragile:data.get("fragile")==="true",updatedAt:serverTimestamp()};
+  setSyncing(true);try{if(id)await updateDoc(doc(db,"households",activeHouseholdId,"movingBoxes",id),payload);else await addDoc(collection(db,"households",activeHouseholdId,"movingBoxes"),{...payload,createdAt:serverTimestamp()});$("#boxDialog").close();toast(id?"Carton mis à jour !":"Carton ajouté !");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 document.addEventListener("click",async e=>{
+  const boxEdit=e.target.closest(".edit-box");
+  if(boxEdit){
+    const id=boxEdit.closest("[data-box-id]").dataset.boxId,item=movingBoxes.find(box=>String(box.id)===id);
+    if(item)openBox(item);return;
+  }
+  const compactCheck=e.target.closest("[data-compact-task]");
+  if(compactCheck){
+    const id=compactCheck.dataset.compactTask,task=tasks.find(item=>String(item.id)===id);
+    if(task&&activeHouseholdId){const done=!task.done;await updateDoc(doc(db,"households",activeHouseholdId,"tasks",id),{done,status:done?"done":"todo",updatedAt:serverTimestamp()});}
+    return;
+  }
   const expenseEdit=e.target.closest(".edit-expense");
   if(expenseEdit){
     const id=expenseEdit.closest("[data-expense]").dataset.expense;
@@ -434,15 +525,22 @@ $("#deleteContactButton").addEventListener("click",async()=>{
 $("#deleteDocumentButton").addEventListener("click",async()=>{
   const id=$("#documentForm").dataset.editing;
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce document ?"))return;
-  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+  const item=saleDocuments.find(documentItem=>String(documentItem.id)===id);
+  setSyncing(true);try{if(item?.storagePath)await deleteObject(storageRef(storage,item.storagePath)).catch(()=>{});await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 $("#deleteExpenseButton").addEventListener("click",async()=>{
   const id=$("#expenseForm").dataset.editing;
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement cet élément du budget ?"))return;
   setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"expenses",id));$("#expenseDialog").close();toast("Élément supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
+$("#deleteBoxButton").addEventListener("click",async()=>{
+  const id=$("#boxForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce carton ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"movingBoxes",id));$("#boxDialog").close();toast("Carton supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 $("#statusFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$("#statusFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#budgetFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBudgetType=b.dataset.budgetType;$("#budgetFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderBudget();}));
+$("#boxFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBoxStatus=b.dataset.boxStatus;$("#boxFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderMove();}));
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
 $("#authForm").addEventListener("submit",async event=>{
@@ -461,6 +559,16 @@ $(".close-account").addEventListener("click",()=>$("#accountDialog").close());
 $("#copyCodeButton").addEventListener("click",async()=>{
   await navigator.clipboard.writeText(activeHouseholdId || "");
   toast("Code du foyer copié !");
+});
+$("#notificationButton").addEventListener("click",async()=>{
+  if(!("Notification" in window)){toast("Les notifications ne sont pas disponibles sur cet appareil.");return;}
+  const permission=await Notification.requestPermission();
+  if(permission==="granted"){localStorage.removeItem("capMontagneReminderDate");await sendDeadlineReminder();toast("Les rappels sont activés.");}
+  else toast("Les notifications n’ont pas été autorisées.");
+});
+$("#installAppButton").addEventListener("click",async()=>{
+  if(!deferredInstallPrompt)return;
+  deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;$("#installAppButton").hidden=true;
 });
 $("#logoutButton").addEventListener("click",async()=>{
   $("#accountDialog").close();
@@ -484,4 +592,11 @@ onAuthStateChanged(auth,async user=>{
       toast("Votre compte a été reconnu automatiquement.");
     }
   } catch(error){profileCreationInProgress=false;showAuth();$("#authError").textContent=firebaseMessage(error);}
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+window.addEventListener("beforeinstallprompt",event=>{
+  event.preventDefault();deferredInstallPrompt=event;$("#installAppButton").hidden=false;
 });
