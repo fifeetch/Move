@@ -1,11 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signOut, updateProfile
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot,
-  addDoc, deleteDoc, writeBatch, serverTimestamp
+  addDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js?v=2";
 
@@ -206,37 +205,6 @@ function firebaseMessage(error) {
   return messages[error.code] || error.message || "Une erreur inattendue est survenue.";
 }
 
-function makeHouseholdCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({length:8},()=>alphabet[Math.floor(Math.random()*alphabet.length)]).join("");
-}
-
-async function createHousehold(user, displayName) {
-  const code = makeHouseholdCode();
-  const householdRef = doc(db,"households",code);
-  const batch = writeBatch(db);
-  batch.set(householdRef,{
-    name:"Notre foyer", ownerId:user.uid, code, joinable:true,
-    members:{[user.uid]:true}, memberNames:{[user.uid]:displayName},
-    createdAt:serverTimestamp(), updatedAt:serverTimestamp()
-  });
-  batch.set(doc(db,"users",user.uid),{
-    displayName, email:user.email, householdId:code, createdAt:serverTimestamp()
-  });
-  seedTasks.forEach(task=>{
-    const ref=doc(collection(householdRef,"tasks"));
-    const {id,...data}=task;
-    batch.set(ref,{...data,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-  });
-  seedExpenses.forEach(expense=>{
-    const ref=doc(collection(householdRef,"expenses"));
-    const {id,...data}=expense;
-    batch.set(ref,{...data,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-  });
-  await batch.commit();
-  return code;
-}
-
 async function joinHousehold(user, displayName, rawCode) {
   const code=rawCode.trim().toUpperCase();
   const householdRef=doc(db,"households",code);
@@ -302,6 +270,18 @@ function showAuth() {
   stopSubscriptions();
   activeUser=null; activeHouseholdId=null;
   $("#authGate").classList.remove("hidden");
+}
+
+function showLogin() {
+  authMode="login";
+  $("#loginFields").hidden=false;$("#profileSetupFields").hidden=true;
+  $("#authForm [name='email']").required=true;$("#authForm [name='password']").required=true;
+  $("#authForm [name='displayName']").required=false;$("#authForm [name='householdCode']").required=false;
+  $("#authTitle").textContent="Se connecter";
+  $("#authIntro").textContent="Utilisez le compte créé dans Firebase pour accéder à votre foyer.";
+  $(".auth-submit").textContent="Se connecter";
+  $("#authError").textContent="";
+  showAuth();
 }
 
 $$(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>goTo(b.dataset.view)));
@@ -430,17 +410,6 @@ $("#deleteDocumentButton").addEventListener("click",async()=>{
 $$(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$$(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
-$$(".auth-tab").forEach(button=>button.addEventListener("click",()=>{
-  authMode=button.dataset.authMode;
-  $$(".auth-tab").forEach(tab=>tab.classList.toggle("active",tab===button));
-  const registering=authMode==="register";
-  $("#registerFields").hidden=!registering;
-  $("#joinFields").hidden=!registering;
-  $("#authForm [name='displayName']").required=registering;
-  $("#authForm [name='password']").autocomplete=registering?"new-password":"current-password";
-  $(".auth-submit").textContent=registering?"Créer mon compte":"Se connecter";
-  $("#authError").textContent="";
-}));
 $("#authForm").addEventListener("submit",async event=>{
   event.preventDefault();
   const form=event.currentTarget,data=new FormData(form),submit=$(".auth-submit");
@@ -450,17 +419,16 @@ $("#authForm").addEventListener("submit",async event=>{
       await signInWithEmailAndPassword(auth,data.get("email"),data.get("password"));
     } else {
       profileCreationInProgress=true;
-      const credential=auth.currentUser
-        ? {user:auth.currentUser}
-        : await createUserWithEmailAndPassword(auth,data.get("email"),data.get("password"));
+      const credential={user:auth.currentUser};
+      if(!credential.user)throw new Error("Reconnectez-vous avant de rejoindre le foyer.");
       const displayName=data.get("displayName").trim();
-      await updateProfile(credential.user,{displayName});
       const joinCode=data.get("householdCode").trim();
-      if(joinCode) await joinHousehold(credential.user,displayName,joinCode);
-      else await createHousehold(credential.user,displayName);
+      if(!displayName||!joinCode)throw new Error("Le prénom et le code du foyer sont obligatoires.");
+      await updateProfile(credential.user,{displayName});
+      await joinHousehold(credential.user,displayName,joinCode);
       profileCreationInProgress=false;
       await openSession(credential.user);
-      toast("Bienvenue dans votre nouvel espace !");
+      toast("Bienvenue dans votre foyer partagé !");
     }
   } catch(error) {
     profileCreationInProgress=false;
@@ -483,16 +451,19 @@ $("#todayLabel").textContent=new Intl.DateTimeFormat("fr-FR",{weekday:"long",day
 renderAll();
 onAuthStateChanged(auth,async user=>{
   if(profileCreationInProgress)return;
-  if(!user){showAuth();return;}
+  if(!user){showLogin();return;}
   try {
     const profile=await getDoc(doc(db,"users",user.uid));
     if(profile.exists()) await openSession(user);
     else {
-      authMode="register";
-      $$(".auth-tab").forEach(tab=>tab.classList.toggle("active",tab.dataset.authMode==="register"));
-      $("#registerFields").hidden=false;$("#joinFields").hidden=false;
-      $(".auth-submit").textContent="Finaliser mon compte";
-      $("#authError").textContent="Choisissez votre prénom et votre foyer pour terminer l’inscription.";
+      authMode="setup";
+      $("#loginFields").hidden=true;$("#profileSetupFields").hidden=false;
+      $("#authForm [name='email']").required=false;$("#authForm [name='password']").required=false;
+      $("#authForm [name='displayName']").required=true;$("#authForm [name='householdCode']").required=true;
+      $("#authTitle").textContent="Rejoindre le foyer";
+      $("#authIntro").textContent="Votre compte Firebase est valide. Rattachez-le une seule fois au foyer partagé.";
+      $(".auth-submit").textContent="Rejoindre le foyer";
+      $("#authError").textContent="";
       showAuth();
     }
   } catch(error){showAuth();$("#authError").textContent=firebaseMessage(error);}

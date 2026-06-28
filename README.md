@@ -14,7 +14,7 @@ python -m http.server 8000
 
 Puis ouvrez `http://localhost:8000`.
 
-Les données sont synchronisées avec Firebase Authentication et Cloud Firestore. Chaque utilisateur se connecte avec son adresse e-mail et rejoint un foyer partagé grâce à un code.
+Les données sont synchronisées avec Firebase Authentication et Cloud Firestore. Les comptes sont créés par l’administrateur dans Firebase ; l’application propose uniquement la connexion. Lors de sa première connexion, un nouveau membre rattache une seule fois son compte au foyer grâce au code partagé.
 
 ## Publier sur GitHub Pages
 
