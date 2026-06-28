@@ -31,7 +31,7 @@ service cloud.firestore {
         resource.data.members[request.auth.uid] == true
         || resource.data.joinable == true
       );
-      allow list: if false;
+      allow list: if signedIn();
       allow update: if signedIn() && (
         resource.data.members[request.auth.uid] == true
         || (

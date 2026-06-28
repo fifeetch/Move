@@ -155,10 +155,6 @@
             <label>Adresse e-mail<input name="email" type="email" required autocomplete="email" placeholder="vous@exemple.fr"></label>
             <label>Mot de passe<input name="password" type="password" required minlength="6" autocomplete="current-password" placeholder="Votre mot de passe"></label>
           </div>
-          <div id="profileSetupFields" hidden>
-            <label>Votre prénom<input name="displayName" autocomplete="name" placeholder="Marion"></label>
-            <label>Code du foyer<input name="householdCode" maxlength="8" placeholder="Ex. AB12CD34"><span class="field-help">Ce code est visible dans le profil du premier membre.</span></label>
-          </div>
           <p class="auth-error" id="authError"></p>
           <button class="primary-button auth-submit" type="submit">Se connecter</button>
         </form>
@@ -226,6 +222,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=7"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>

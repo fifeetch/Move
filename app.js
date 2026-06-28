@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot,
-  addDoc, deleteDoc, serverTimestamp
+  addDoc, deleteDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js?v=2";
 
@@ -221,6 +221,16 @@ async function joinHousehold(user, displayName, rawCode) {
   return code;
 }
 
+async function attachAuthorizedUser(user) {
+  const households=await getDocs(collection(db,"households"));
+  if(households.size!==1) throw new Error("Le foyer partagé n’est pas configuré.");
+  const emailName=(user.email||"").split("@")[0].toLowerCase();
+  const displayName=user.displayName
+    || (emailName.includes("marion")?"Marion":emailName.includes("fife")?"Philippe":emailName);
+  await updateProfile(user,{displayName});
+  await joinHousehold(user,displayName,households.docs[0].id);
+}
+
 function stopSubscriptions() {
   if(unsubscribeTasks) unsubscribeTasks();
   if(unsubscribeExpenses) unsubscribeExpenses();
@@ -274,9 +284,8 @@ function showAuth() {
 
 function showLogin() {
   authMode="login";
-  $("#loginFields").hidden=false;$("#profileSetupFields").hidden=true;
+  $("#loginFields").hidden=false;
   $("#authForm [name='email']").required=true;$("#authForm [name='password']").required=true;
-  $("#authForm [name='displayName']").required=false;$("#authForm [name='householdCode']").required=false;
   $("#authTitle").textContent="Se connecter";
   $("#authIntro").textContent="Utilisez le compte créé dans Firebase pour accéder à votre foyer.";
   $(".auth-submit").textContent="Se connecter";
@@ -415,21 +424,7 @@ $("#authForm").addEventListener("submit",async event=>{
   const form=event.currentTarget,data=new FormData(form),submit=$(".auth-submit");
   $("#authError").textContent="";submit.disabled=true;
   try {
-    if(authMode==="login"){
-      await signInWithEmailAndPassword(auth,data.get("email"),data.get("password"));
-    } else {
-      profileCreationInProgress=true;
-      const credential={user:auth.currentUser};
-      if(!credential.user)throw new Error("Reconnectez-vous avant de rejoindre le foyer.");
-      const displayName=data.get("displayName").trim();
-      const joinCode=data.get("householdCode").trim();
-      if(!displayName||!joinCode)throw new Error("Le prénom et le code du foyer sont obligatoires.");
-      await updateProfile(credential.user,{displayName});
-      await joinHousehold(credential.user,displayName,joinCode);
-      profileCreationInProgress=false;
-      await openSession(credential.user);
-      toast("Bienvenue dans votre foyer partagé !");
-    }
+    await signInWithEmailAndPassword(auth,data.get("email"),data.get("password"));
   } catch(error) {
     profileCreationInProgress=false;
     $("#authError").textContent=firebaseMessage(error);
@@ -456,15 +451,11 @@ onAuthStateChanged(auth,async user=>{
     const profile=await getDoc(doc(db,"users",user.uid));
     if(profile.exists()) await openSession(user);
     else {
-      authMode="setup";
-      $("#loginFields").hidden=true;$("#profileSetupFields").hidden=false;
-      $("#authForm [name='email']").required=false;$("#authForm [name='password']").required=false;
-      $("#authForm [name='displayName']").required=true;$("#authForm [name='householdCode']").required=true;
-      $("#authTitle").textContent="Rejoindre le foyer";
-      $("#authIntro").textContent="Votre compte Firebase est valide. Rattachez-le une seule fois au foyer partagé.";
-      $(".auth-submit").textContent="Rejoindre le foyer";
-      $("#authError").textContent="";
-      showAuth();
+      profileCreationInProgress=true;
+      await attachAuthorizedUser(user);
+      profileCreationInProgress=false;
+      await openSession(user);
+      toast("Votre compte a été reconnu automatiquement.");
     }
-  } catch(error){showAuth();$("#authError").textContent=firebaseMessage(error);}
+  } catch(error){profileCreationInProgress=false;showAuth();$("#authError").textContent=firebaseMessage(error);}
 });
