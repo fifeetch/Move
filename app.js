@@ -75,6 +75,7 @@ let currentBudgetType = "all";
 let currentBoxStatus = "all";
 let calendarCursor = new Date();
 let agendaViewMode = "month";
+let currentDocumentScope = "all";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -164,7 +165,49 @@ function renderSale() {
   const sale=tasks.filter(t=>t.category==="Vente de la maison").sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999"));
   $("#saleTimeline").innerHTML=sale.map((t,i)=>`<div class="timeline-item"><span class="timeline-dot">${t.done?"✓":i+1}</span><div><strong>${esc(t.title)}</strong><span>${t.assignee} · ${formatDate(t.deadline)}</span></div><b class="status ${t.done?"done":t.status}">${t.done?"Terminé":t.status==="doing"?"En cours":"À faire"}</b><button class="edit-task edit-sale-task" data-task-id="${t.id}"><span>✎</span> Modifier</button></div>`).join("")||`<div class="empty-contact">Ajoutez une tâche dans la catégorie « Vente de la maison ».</div>`;
   $("#contactList").innerHTML=contacts.length?contacts.sort((a,b)=>a.type.localeCompare(b.type)).map(contact=>`<article class="contact-card" data-contact-id="${contact.id}"><span class="contact-icon">${contact.type==="Notaire"?"§":contact.type==="Agence immobilière"?"⌂":"●"}</span><div><strong>${esc(contact.name)}</strong><small>${esc(contact.type)}${contact.contactName?` · ${esc(contact.contactName)}`:""}</small><div class="contact-links">${contact.phone?`<a href="tel:${esc(contact.phone)}">${esc(contact.phone)}</a>`:""}${contact.email?`<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>`:""}</div></div><button class="edit-task edit-contact"><span>✎</span> Modifier</button></article>`).join(""):`<div class="empty-contact">Aucun interlocuteur enregistré.<br>Ajoutez l’agence, le notaire ou le diagnostiqueur.</div>`;
-  $("#documentList").innerHTML=saleDocuments.length?saleDocuments.sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).map(item=>`<div class="document-row" data-document-id="${item.id}"><span>▤</span><div><strong>${esc(item.name)}</strong><small>${item.notes?esc(item.notes):formatDate(item.deadline)}</small></div><span>${safeUrl(item.url)?`<a href="${safeUrl(item.url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`:""}</span><b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`).join(""):`<div class="empty-contact">Aucun document suivi pour le moment.</div>`;
+  const currentDocuments=saleDocuments.filter(item=>(item.space||"current")==="current");
+  $("#documentList").innerHTML=currentDocuments.length?currentDocuments.sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).map(item=>`<div class="document-row" data-document-id="${item.id}"><span>▤</span><div><strong>${esc(item.name)}</strong><small>${item.notes?esc(item.notes):formatDate(item.deadline)}</small></div><span>${safeUrl(item.url)?`<a href="${safeUrl(item.url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`:""}</span><b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`).join(""):`<div class="empty-contact">Aucun document suivi pour le moment.</div>`;
+}
+
+const documentFolderLabels={sale:"Vente & propriété",diagnostics:"Diagnostics",notary:"Notaire",works:"Travaux",ourFile:"Nos documents",guarantors:"Documents des garants",applications:"Candidatures",lease:"Bail & entrée"};
+const documentScopeLabels={all:"Tous les documents",current:"Maison actuelle",future:"Futur logement",rental:"Locatif","our-file":"Nos documents",guarantors:"Documents des garants",applications:"Candidatures"};
+const documentScopeParents={current:["all"],future:["all"],rental:["all","future"],"our-file":["all","future","rental"],guarantors:["all","future","rental"],applications:["all","future","rental"]};
+function setDocumentScope(scope,{scroll=false}={}){
+  currentDocumentScope=scope;renderDocuments();
+  if(scroll)$(".documents-library").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderDocumentBreadcrumb(){
+  const scopes=[...(documentScopeParents[currentDocumentScope]||[]),currentDocumentScope];
+  $("#documentBreadcrumb").innerHTML=scopes.map((scope,index)=>`${index?'<span aria-hidden="true">›</span>':""}<button type="button" data-document-breadcrumb="${scope}" ${scope===currentDocumentScope?'aria-current="page"':""}>${scope==="all"?"Documents":documentScopeLabels[scope]}</button>`).join("");
+  $$("#documentsView [data-document-scope]").forEach(button=>button.classList.toggle("active",button.dataset.documentScope===currentDocumentScope));
+}
+function documentMatchesScope(item,scope){
+  const space=item.space||"current",folder=item.folder||"sale";
+  if(scope==="all")return true;
+  if(scope==="current"||scope==="future")return space===scope;
+  if(scope==="rental")return space==="future"&&["ourFile","guarantors","applications","lease"].includes(folder);
+  return folder===({"our-file":"ourFile",guarantors:"guarantors",applications:"applications"}[scope]);
+}
+function renderDocuments(){
+  const current=saleDocuments.filter(item=>(item.space||"current")==="current");
+  const future=saleDocuments.filter(item=>item.space==="future");
+  const rental=future.filter(item=>["ourFile","guarantors","applications","lease"].includes(item.folder));
+  $("#currentDocumentCount").textContent=current.length;$("#currentMissingCount").textContent=`${current.filter(item=>item.status!=="done").length} à obtenir`;
+  $("#futureDocumentCount").textContent=future.length;$("#futureMissingCount").textContent=`${future.filter(item=>item.status!=="done").length} à obtenir`;
+  const ready=rental.filter(item=>item.status==="done").length;
+  $("#rentalProgressLabel").textContent=`${ready} / ${rental.length} pièces prêtes`;
+  $("#rentalProgress").style.width=`${rental.length?Math.round(ready/rental.length*100):0}%`;
+  $("#documentLibraryTitle").textContent=documentScopeLabels[currentDocumentScope];
+  renderDocumentBreadcrumb();
+  const query=$("#documentSearch").value.toLowerCase().trim(),status=$("#documentStatusFilter").value;
+  const filtered=saleDocuments.filter(item=>documentMatchesScope(item,currentDocumentScope)&&(status==="all"||item.status===status)&&(`${item.name} ${item.notes||""} ${documentFolderLabels[item.folder]||""}`).toLowerCase().includes(query))
+    .sort((a,b)=>(b.updatedAt?.seconds||b.createdAt?.seconds||0)-(a.updatedAt?.seconds||a.createdAt?.seconds||0));
+  $("#documentsLibraryList").innerHTML=filtered.length?filtered.map(item=>{
+    const space=(item.space||"current")==="current"?"Maison actuelle":"Futur logement",folder=documentFolderLabels[item.folder||"sale"]||"Autre";
+    const owner=item.owner==="marion"?"Marion":item.owner==="philippe"?"Philippe":item.owner==="guarantor"?(item.guarantorName||"Garant"):"Commun";
+    const validity=item.deadline?` · Validité : ${formatDate(item.deadline)}`:"";
+    return `<div class="document-library-row" data-document-id="${item.id}"><span class="document-file-icon">▤</span><div><strong>${esc(item.name)}</strong><small>${esc(owner)}${validity}${item.fileName?` · ${esc(item.fileName)}`:""}</small></div><span class="document-path">▰ ${space} › ${folder}</span>${safeUrl(item.url)?`<a href="${safeUrl(item.url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`:"<span></span>"}<b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`;
+  }).join(""):`<div class="empty-contact">Aucun document dans ce dossier.</div>`;
 }
 
 function renderBudget() {
@@ -237,7 +280,7 @@ function renderAgenda(){
   }).join("")||`<div class="empty-state">Aucune date à venir.</div>`;
 }
 
-function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();renderMove();renderAgenda();}
+function renderAll(){renderDashboard();renderTasks();renderSale();renderDocuments();renderBudget();renderMove();renderAgenda();}
 function toast(message){const el=$("#toast");el.textContent=message;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2300);}
 async function sendDeadlineReminder(){
   if(!("Notification" in window)||Notification.permission!=="granted"||!("serviceWorker" in navigator))return;
@@ -283,12 +326,32 @@ function openContact(contact=null){
   $("#contactDialog").showModal();
 }
 
+function documentDefaultsForScope(scope){
+  if(scope==="current")return {space:"current",folder:"sale",owner:"common"};
+  if(scope==="guarantors")return {space:"future",folder:"guarantors",owner:"guarantor"};
+  if(scope==="applications")return {space:"future",folder:"applications",owner:"common"};
+  return {space:scope==="all"?"current":"future",folder:"ourFile",owner:"common"};
+}
+function updateGuarantorField(){
+  $("#guarantorNameField").hidden=$("#documentOwner").value!=="guarantor";
+}
 function openDocument(item=null){
   const form=$("#documentForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
   $("#documentDialogTitle").textContent=editing?"Modifier le document":"Ajouter un document";
   $("#deleteDocumentButton").hidden=!editing;
-  if(editing) ["name","status","deadline","url","notes"].forEach(key=>form.elements[key].value=item[key]||"");
+  const defaults=editing?{space:item.space||"current",folder:item.folder||"sale",owner:item.owner||"common"}:documentDefaultsForScope(currentDocumentScope);
+  form.elements.space.value=defaults.space;updateDocumentFolders(defaults.space);
+  form.elements.folder.value=defaults.folder;form.elements.owner.value=defaults.owner;
+  if(editing)["name","status","deadline","url","notes","guarantorName"].forEach(key=>form.elements[key].value=item[key]||"");
+  updateGuarantorField();
   $("#documentDialog").showModal();
+}
+
+function updateDocumentFolders(space){
+  const folder=$("#documentFolder"),selected=folder.value;
+  const options=space==="future"?[["ourFile","Nos documents"],["guarantors","Documents des garants"],["applications","Candidatures"],["lease","Bail & entrée"]]:[["sale","Vente & propriété"],["diagnostics","Diagnostics"],["notary","Notaire"],["works","Travaux"]];
+  folder.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
+  if(options.some(([value])=>value===selected))folder.value=selected;
 }
 
 function openExpense(item=null){
@@ -386,7 +449,7 @@ function subscribeToHousehold(householdId) {
   },error=>toast(firebaseMessage(error)));
   unsubscribeDocuments=onSnapshot(collection(householdRef,"documents"),snapshot=>{
     saleDocuments=snapshot.docs.map(item=>({id:item.id,...item.data()}));
-    renderSale();setSyncing(false);
+    renderSale();renderDocuments();setSyncing(false);
   },error=>toast(firebaseMessage(error)));
   unsubscribeBoxes=onSnapshot(collection(householdRef,"movingBoxes"),snapshot=>{
     movingBoxes=snapshot.docs.map(item=>({id:item.id,...item.data()}));
@@ -440,6 +503,7 @@ $$(".close-expense").forEach(b=>b.addEventListener("click",()=>$("#expenseDialog
 $("#addExpenseButton").addEventListener("click",()=>openExpense());
 $("#addContactButton").addEventListener("click",()=>openContact());
 $("#addDocumentButton").addEventListener("click",()=>openDocument());
+$$(".add-document-button").forEach(button=>button.addEventListener("click",()=>openDocument()));
 $("#addBoxButton").addEventListener("click",()=>openBox());
 $("#addAppointmentButton").addEventListener("click",()=>openAppointment());
 $$(".close-contact").forEach(button=>button.addEventListener("click",()=>$("#contactDialog").close()));
@@ -447,6 +511,15 @@ $$(".close-document").forEach(button=>button.addEventListener("click",()=>$("#do
 $$(".close-box").forEach(button=>button.addEventListener("click",()=>$("#boxDialog").close()));
 $$(".close-appointment").forEach(button=>button.addEventListener("click",()=>$("#appointmentDialog").close()));
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
+$("#documentSpace").addEventListener("change",event=>updateDocumentFolders(event.target.value));
+$("#documentOwner").addEventListener("change",updateGuarantorField);
+$("#documentSearch").addEventListener("input",renderDocuments);
+$("#documentStatusFilter").addEventListener("change",renderDocuments);
+$$("#documentsView [data-document-scope]").forEach(button=>button.addEventListener("click",()=>setDocumentScope(button.dataset.documentScope,{scroll:true})));
+$("#documentBreadcrumb").addEventListener("click",event=>{
+  const button=event.target.closest("[data-document-breadcrumb]");
+  if(button)setDocumentScope(button.dataset.documentBreadcrumb);
+});
 $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
 $("#taskForm").addEventListener("submit",async e=>{
   e.preventDefault(); const data=new FormData(e.currentTarget);
@@ -492,7 +565,7 @@ $("#documentForm").addEventListener("submit",async event=>{
   event.preventDefault();if(!activeHouseholdId)return;
   const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
   const existing=saleDocuments.find(item=>String(item.id)===id);
-  const payload={name:data.get("name").trim(),status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
+  const payload={name:data.get("name").trim(),space:data.get("space"),folder:data.get("folder"),owner:data.get("owner"),guarantorName:data.get("owner")==="guarantor"?data.get("guarantorName").trim():"",status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
   const file=form.elements.file.files[0];
   setSyncing(true);
   try{

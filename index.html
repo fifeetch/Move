@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
   <div class="app-shell">
@@ -24,6 +24,7 @@
         <button class="nav-item active" data-view="dashboard"><span>◫</span> Vue d’ensemble</button>
         <button class="nav-item" data-view="agenda"><span>▦</span> Agenda</button>
         <button class="nav-item" data-view="tasks"><span>✓</span> Toutes les tâches <b id="navTaskCount">0</b></button>
+        <button class="nav-item" data-view="documents"><span>▤</span> Documents</button>
         <button class="nav-item" data-view="sale"><span>⌂</span> Vente de la maison</button>
         <button class="nav-item" data-view="move"><span>▣</span> Déménagement</button>
         <button class="nav-item" data-view="budget"><span>€</span> Budget & achats</button>
@@ -137,6 +138,30 @@
           <section class="panel document-panel"><div class="panel-heading"><h2>Documents importants</h2><button class="text-button" id="addDocumentButton">＋ Ajouter</button></div><div id="documentList"></div></section>
         </section>
 
+        <section class="view" id="documentsView">
+          <nav class="document-breadcrumb" id="documentBreadcrumb" aria-label="Fil d’Ariane des documents"></nav>
+          <div class="page-title documents-title"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h1>Mes documents</h1><p>Tous les papiers du projet, classés au même endroit.</p></div><button class="primary-button add-document-button">＋ Ajouter un document</button></div>
+          <div class="document-home-grid">
+            <button class="document-home-card" data-document-scope="current">
+              <span class="folder-visual current">▰</span>
+              <span class="folder-copy"><strong>Maison actuelle</strong><small>Vente, diagnostics, notaire et travaux</small><span><b id="currentDocumentCount">0</b> document(s) · <em id="currentMissingCount">0 à obtenir</em></span></span>
+            </button>
+            <article class="document-home-card future-card">
+              <button class="future-card-main" data-document-scope="future"><span class="folder-visual future">▰</span><span class="folder-copy"><strong>Futur logement</strong><small>Recherche, location et installation</small><span><b id="futureDocumentCount">0</b> document(s) · <em id="futureMissingCount">0 à obtenir</em></span></span></button>
+              <button class="rental-folder" data-document-scope="rental"><span>▰</span><strong>Locatif</strong><small id="rentalProgressLabel">0 / 0 pièces prêtes</small><i class="progress"><span id="rentalProgress"></span></i></button>
+              <div class="rental-subfolders">
+                <button data-document-scope="our-file"><span>▰</span>Nos documents</button>
+                <button data-document-scope="guarantors"><span>▰</span>Documents des garants</button>
+                <button data-document-scope="applications"><span>▰</span>Candidatures</button>
+              </div>
+            </article>
+          </div>
+          <section class="panel documents-library">
+            <div class="panel-heading document-library-heading"><div><p class="eyebrow">BIBLIOTHÈQUE</p><h2 id="documentLibraryTitle">Tous les documents</h2></div><div class="document-tools"><label class="document-search"><span>⌕</span><input id="documentSearch" type="search" placeholder="Rechercher un document…"></label><select id="documentStatusFilter" aria-label="Filtrer les documents"><option value="all">Tous les statuts</option><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêts</option></select></div></div>
+            <div id="documentsLibraryList"></div>
+          </section>
+        </section>
+
         <section class="view" id="moveView">
           <div class="page-title"><div><p class="eyebrow">LOGISTIQUE</p><h1>Le déménagement</h1><p>Cartons, transport et démarches : tout est ici.</p></div><button class="primary-button" id="addBoxButton">＋ Ajouter un carton</button></div>
           <div class="stats-grid move-stats">
@@ -246,9 +271,12 @@
 
   <dialog id="documentDialog">
     <form id="documentForm">
-      <div class="dialog-head"><div><p class="eyebrow">DOSSIER DE VENTE</p><h2 id="documentDialogTitle">Ajouter un document</h2></div><button type="button" class="icon-button close-document">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h2 id="documentDialogTitle">Ajouter un document</h2></div><button type="button" class="icon-button close-document">×</button></div>
       <label>Nom du document<input name="name" required placeholder="Ex. Titre de propriété"></label>
-      <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Échéance<input name="deadline" type="date"></label></div>
+      <div class="form-row"><label>Espace<select name="space" id="documentSpace"><option value="current">Maison actuelle</option><option value="future">Futur logement</option></select></label><label>Dossier<select name="folder" id="documentFolder"><option value="sale">Vente & propriété</option><option value="diagnostics">Diagnostics</option><option value="notary">Notaire</option><option value="works">Travaux</option></select></label></div>
+      <label>Personne concernée<select name="owner" id="documentOwner"><option value="common">Commun</option><option value="marion">Marion</option><option value="philippe">Philippe</option><option value="guarantor">Garant</option></select></label>
+      <label id="guarantorNameField" hidden>Nom du garant<input name="guarantorName" placeholder="Ex. Jean Dupont"></label>
+      <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Date de validité <small>(facultatif)</small><input name="deadline" type="date"></label></div>
       <label>Lien vers le document <small>(facultatif)</small><input name="url" type="url" placeholder="https://…"></label>
       <label>Fichier <small>(PDF ou image, 10 Mo maximum)</small><input name="file" type="file" accept=".pdf,image/*"></label>
       <label>Notes<textarea name="notes" rows="3" placeholder="Où le trouver, personne à relancer…"></textarea></label>
@@ -280,6 +308,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=12"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>
