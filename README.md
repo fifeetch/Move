@@ -32,7 +32,7 @@ Le projet utilise :
 - une séparation des données par foyer ;
 - des règles Firestore limitant l’accès aux membres du foyer.
 
-Le site est également une Progressive Web App installable. Les rappels locaux signalent les échéances à moins de trois jours lorsque l’application est utilisée.
+L’agenda partagé réunit automatiquement les tâches avec échéance et les rendez-vous immobiliers ou personnels. Le site est également une Progressive Web App installable. Les rappels locaux signalent les échéances à moins de trois jours lorsque l’application est utilisée.
 
 Les règles sont conservées dans `firestore.rules` et peuvent être déployées avec :
 

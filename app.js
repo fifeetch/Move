@@ -69,9 +69,11 @@ let expenses = seedExpenses;
 let contacts = [];
 let saleDocuments = [];
 let movingBoxes = [];
+let appointments = [];
 let currentStatus = "all";
 let currentBudgetType = "all";
 let currentBoxStatus = "all";
+let calendarCursor = new Date(new Date().getFullYear(),new Date().getMonth(),1);
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -81,6 +83,7 @@ let unsubscribeExpenses = null;
 let unsubscribeContacts = null;
 let unsubscribeDocuments = null;
 let unsubscribeBoxes = null;
+let unsubscribeAppointments = null;
 let deferredInstallPrompt = null;
 
 const $ = (s) => document.querySelector(s);
@@ -116,9 +119,9 @@ function renderDashboard() {
   $("#philippeCount").textContent=`${tasks.filter(t=>!t.done&&(t.assignee==="Philippe"||t.assignee==="Commun")).length} pour Philippe`;
   const priorities=tasks.filter(t=>!t.done&&(t.priority==="high"||isOverdue(t))).sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).slice(0,5);
   $("#priorityList").innerHTML=priorities.map(t=>taskRow(t)).join("") || `<p class="empty-state">Tout est sous contrôle 🌿</p>`;
-  const upcoming=tasks.filter(t=>!t.done&&t.deadline).sort((a,b)=>a.deadline.localeCompare(b.deadline))[0];
+  const upcoming=[...tasks.filter(t=>!t.done&&t.deadline).map(t=>({title:t.title,date:t.deadline})),...appointments.filter(item=>item.date).map(item=>({title:item.title,date:item.date}))].sort((a,b)=>a.date.localeCompare(b.date))[0];
   if(upcoming){
-    const date=new Date(`${upcoming.deadline}T12:00:00`);
+    const date=new Date(`${upcoming.date}T12:00:00`);
     $("#nextDeadlineDay").textContent=date.getDate();
     $("#nextDeadlineMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long"}).format(date).toUpperCase();
     $("#nextDeadlineTitle").textContent=upcoming.title;
@@ -196,17 +199,41 @@ function renderMove(){
   $("#addressTasks").innerHTML=address.map(task=>`<div class="compact-task ${task.done?"done":""}"><button class="check ${task.done?"done":""}" data-compact-task="${task.id}">${task.done?"✓":""}</button><span>${esc(task.title)}</span></div>`).join("")||`<div class="empty-contact">Aucune démarche enregistrée.</div>`;
 }
 
-function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();renderMove();}
+function agendaEvents(){
+  const taskEvents=tasks.filter(task=>task.deadline).map(task=>({id:task.id,title:task.title,date:task.deadline,time:"",kind:"task",done:task.done,assignee:task.assignee,location:""}));
+  const appointmentEvents=appointments.map(item=>({...item,kind:"appointment"}));
+  return [...taskEvents,...appointmentEvents];
+}
+
+function renderAgenda(){
+  const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth();
+  $("#calendarMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"}).format(calendarCursor);
+  const first=new Date(year,month,1),mondayOffset=(first.getDay()+6)%7,start=new Date(year,month,1-mondayOffset);
+  const events=agendaEvents(),today=new Date().toISOString().slice(0,10);
+  $("#calendarGrid").innerHTML=Array.from({length:42},(_,index)=>{
+    const date=new Date(start);date.setDate(start.getDate()+index);
+    const key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+    const dayEvents=events.filter(item=>item.date===key).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+    return `<div class="calendar-day ${date.getMonth()!==month?"outside":""} ${key===today?"today":""}" data-calendar-date="${key}"><span class="day-number">${date.getDate()}</span><div class="calendar-events">${dayEvents.slice(0,3).map(item=>`<button class="calendar-event ${item.kind==="appointment"?"appointment":""} ${item.kind==="task"&&!item.done&&item.date<today?"overdue":""}" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}" title="${esc(item.title)}">${item.time?esc(item.time)+" ":""}${esc(item.title)}</button>`).join("")}${dayEvents.length>3?`<span class="more-events">+${dayEvents.length-3} autre(s)</span>`:""}</div></div>`;
+  }).join("");
+  const upcoming=events.filter(item=>item.kind==="appointment"||!item.done).filter(item=>item.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,10);
+  $("#upcomingEvents").innerHTML=upcoming.map(item=>{
+    const date=new Date(`${item.date}T12:00:00`);
+    return `<button class="upcoming-card ${item.kind==="appointment"?"appointment":""}" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}"><span class="upcoming-date"><strong>${date.getDate()}</strong><span>${new Intl.DateTimeFormat("fr-FR",{month:"short"}).format(date)}</span></span><div><strong>${esc(item.title)}</strong><small>${item.time?esc(item.time)+" · ":""}${esc(item.assignee||"Commun")}${item.location?` · ${esc(item.location)}`:""}</small></div></button>`;
+  }).join("")||`<div class="empty-state">Aucune date à venir.</div>`;
+}
+
+function renderAll(){renderDashboard();renderTasks();renderSale();renderBudget();renderMove();renderAgenda();}
 function toast(message){const el=$("#toast");el.textContent=message;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2300);}
 async function sendDeadlineReminder(){
   if(!("Notification" in window)||Notification.permission!=="granted"||!("serviceWorker" in navigator))return;
   const today=new Date().toISOString().slice(0,10);
   if(localStorage.getItem("capMontagneReminderDate")===today)return;
   const limit=new Date();limit.setDate(limit.getDate()+3);
-  const urgent=tasks.filter(task=>!task.done&&task.deadline&&new Date(`${task.deadline}T23:59:59`)<=limit).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+  const urgent=[...tasks.filter(task=>!task.done&&task.deadline).map(task=>({title:task.title,date:task.deadline})),...appointments.filter(item=>item.date).map(item=>({title:item.title,date:item.date}))].filter(item=>new Date(`${item.date}T23:59:59`)<=limit).sort((a,b)=>a.date.localeCompare(b.date));
   if(!urgent.length)return;
   const registration=await navigator.serviceWorker.ready;
-  registration.active?.postMessage({type:"SHOW_REMINDER",title:`${urgent.length} échéance${urgent.length>1?"s":""} à surveiller`,body:`${urgent[0].title} · ${formatDate(urgent[0].deadline)}`});
+  registration.active?.postMessage({type:"SHOW_REMINDER",title:`${urgent.length} échéance${urgent.length>1?"s":""} à surveiller`,body:`${urgent[0].title} · ${formatDate(urgent[0].date)}`});
   localStorage.setItem("capMontagneReminderDate",today);
 }
 function goTo(view){
@@ -271,6 +298,15 @@ function openBox(box=null){
   $("#boxDialog").showModal();
 }
 
+function openAppointment(item=null,date=""){
+  const form=$("#appointmentForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
+  $("#appointmentDialogTitle").textContent=editing?"Modifier le rendez-vous":"Ajouter un rendez-vous";
+  $("#deleteAppointmentButton").hidden=!editing;
+  if(editing)["title","date","time","type","assignee","location","notes"].forEach(key=>form.elements[key].value=item[key]||"");
+  else form.elements.date.value=date||new Date().toISOString().slice(0,10);
+  $("#appointmentDialog").showModal();
+}
+
 function firebaseMessage(error) {
   const messages = {
     "auth/email-already-in-use": "Cette adresse possède déjà un compte.",
@@ -315,7 +351,8 @@ function stopSubscriptions() {
   if(unsubscribeContacts) unsubscribeContacts();
   if(unsubscribeDocuments) unsubscribeDocuments();
   if(unsubscribeBoxes) unsubscribeBoxes();
-  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;unsubscribeBoxes=null;
+  if(unsubscribeAppointments) unsubscribeAppointments();
+  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;unsubscribeBoxes=null;unsubscribeAppointments=null;
 }
 
 function subscribeToHousehold(householdId) {
@@ -340,6 +377,10 @@ function subscribeToHousehold(householdId) {
   unsubscribeBoxes=onSnapshot(collection(householdRef,"movingBoxes"),snapshot=>{
     movingBoxes=snapshot.docs.map(item=>({id:item.id,...item.data()}));
     renderMove();renderDashboard();setSyncing(false);
+  },error=>toast(firebaseMessage(error)));
+  unsubscribeAppointments=onSnapshot(collection(householdRef,"appointments"),snapshot=>{
+    appointments=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderAgenda();renderDashboard();sendDeadlineReminder();setSyncing(false);
   },error=>toast(firebaseMessage(error)));
 }
 
@@ -386,9 +427,11 @@ $("#addExpenseButton").addEventListener("click",()=>openExpense());
 $("#addContactButton").addEventListener("click",()=>openContact());
 $("#addDocumentButton").addEventListener("click",()=>openDocument());
 $("#addBoxButton").addEventListener("click",()=>openBox());
+$("#addAppointmentButton").addEventListener("click",()=>openAppointment());
 $$(".close-contact").forEach(button=>button.addEventListener("click",()=>$("#contactDialog").close()));
 $$(".close-document").forEach(button=>button.addEventListener("click",()=>$("#documentDialog").close()));
 $$(".close-box").forEach(button=>button.addEventListener("click",()=>$("#boxDialog").close()));
+$$(".close-appointment").forEach(button=>button.addEventListener("click",()=>$("#appointmentDialog").close()));
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
 $("#taskForm").addEventListener("submit",async e=>{
@@ -459,7 +502,22 @@ $("#boxForm").addEventListener("submit",async event=>{
   const payload={number:data.get("number").trim(),room:data.get("room"),contents:data.get("contents").trim(),status:data.get("status"),assignee:data.get("assignee"),fragile:data.get("fragile")==="true",updatedAt:serverTimestamp()};
   setSyncing(true);try{if(id)await updateDoc(doc(db,"households",activeHouseholdId,"movingBoxes",id),payload);else await addDoc(collection(db,"households",activeHouseholdId,"movingBoxes"),{...payload,createdAt:serverTimestamp()});$("#boxDialog").close();toast(id?"Carton mis à jour !":"Carton ajouté !");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
+$("#appointmentForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(!activeHouseholdId)return;
+  const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
+  const payload={title:data.get("title").trim(),date:data.get("date"),time:data.get("time"),type:data.get("type"),assignee:data.get("assignee"),location:data.get("location").trim(),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
+  setSyncing(true);try{if(id)await updateDoc(doc(db,"households",activeHouseholdId,"appointments",id),payload);else await addDoc(collection(db,"households",activeHouseholdId,"appointments"),{...payload,createdAt:serverTimestamp()});$("#appointmentDialog").close();toast(id?"Rendez-vous mis à jour !":"Rendez-vous ajouté !");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 document.addEventListener("click",async e=>{
+  const agendaItem=e.target.closest("[data-agenda-kind]");
+  if(agendaItem){
+    const id=agendaItem.dataset.agendaId;
+    if(agendaItem.dataset.agendaKind==="task"){const task=tasks.find(item=>String(item.id)===id);if(task)openTask(task);}
+    else{const appointment=appointments.find(item=>String(item.id)===id);if(appointment)openAppointment(appointment);}
+    return;
+  }
+  const calendarDay=e.target.closest("[data-calendar-date]");
+  if(calendarDay){openAppointment(null,calendarDay.dataset.calendarDate);return;}
   const boxEdit=e.target.closest(".edit-box");
   if(boxEdit){
     const id=boxEdit.closest("[data-box-id]").dataset.boxId,item=movingBoxes.find(box=>String(box.id)===id);
@@ -538,9 +596,16 @@ $("#deleteBoxButton").addEventListener("click",async()=>{
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce carton ?"))return;
   setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"movingBoxes",id));$("#boxDialog").close();toast("Carton supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
+$("#deleteAppointmentButton").addEventListener("click",async()=>{
+  const id=$("#appointmentForm").dataset.editing;
+  if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce rendez-vous ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"appointments",id));$("#appointmentDialog").close();toast("Rendez-vous supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 $("#statusFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$("#statusFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#budgetFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBudgetType=b.dataset.budgetType;$("#budgetFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderBudget();}));
 $("#boxFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBoxStatus=b.dataset.boxStatus;$("#boxFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderMove();}));
+$("#previousMonth").addEventListener("click",()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);renderAgenda();});
+$("#nextMonth").addEventListener("click",()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);renderAgenda();});
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
 $("#authForm").addEventListener("submit",async event=>{

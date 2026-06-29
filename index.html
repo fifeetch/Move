@@ -22,6 +22,7 @@
       </div>
       <nav aria-label="Navigation principale">
         <button class="nav-item active" data-view="dashboard"><span>◫</span> Vue d’ensemble</button>
+        <button class="nav-item" data-view="agenda"><span>▦</span> Agenda</button>
         <button class="nav-item" data-view="tasks"><span>✓</span> Toutes les tâches <b id="navTaskCount">0</b></button>
         <button class="nav-item" data-view="sale"><span>⌂</span> Vente de la maison</button>
         <button class="nav-item" data-view="move"><span>▣</span> Déménagement</button>
@@ -96,6 +97,19 @@
             <div class="panel-heading"><div><p class="eyebrow">TRI & PRÉPARATION</p><h2>Avancement par espace</h2></div><button class="text-button" data-go="tasks">Toutes les pièces →</button></div>
             <div id="roomCards" class="room-grid"></div>
           </section>
+        </section>
+
+        <section class="view" id="agendaView">
+          <div class="page-title"><div><p class="eyebrow">CALENDRIER PARTAGÉ</p><h1>Agenda</h1><p>Tâches, rendez-vous et visites réunis au même endroit.</p></div><button class="primary-button" id="addAppointmentButton">＋ Ajouter un rendez-vous</button></div>
+          <div class="agenda-layout">
+            <section class="panel calendar-panel">
+              <div class="calendar-header"><button class="icon-button" id="previousMonth" aria-label="Mois précédent">←</button><h2 id="calendarMonth"></h2><button class="icon-button" id="nextMonth" aria-label="Mois suivant">→</button></div>
+              <div class="calendar-weekdays"><span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span></div>
+              <div id="calendarGrid" class="calendar-grid"></div>
+            </section>
+            <aside class="panel agenda-side"><div class="panel-heading"><div><p class="eyebrow">PROCHAINEMENT</p><h2>Les prochaines dates</h2></div></div><div id="upcomingEvents" class="upcoming-events"></div></aside>
+          </div>
+          <div class="agenda-legend"><span><i class="legend-dot task-dot"></i>Tâche</span><span><i class="legend-dot appointment-dot"></i>Rendez-vous</span><span><i class="legend-dot overdue-dot"></i>En retard</span></div>
         </section>
 
         <section class="view" id="tasksView">
@@ -252,7 +266,19 @@
     </form>
   </dialog>
 
+  <dialog id="appointmentDialog">
+    <form id="appointmentForm">
+      <div class="dialog-head"><div><p class="eyebrow">AGENDA PARTAGÉ</p><h2 id="appointmentDialogTitle">Ajouter un rendez-vous</h2></div><button type="button" class="icon-button close-appointment">×</button></div>
+      <label>Intitulé<input name="title" required placeholder="Ex. Rendez-vous DPE"></label>
+      <div class="form-row"><label>Date<input name="date" type="date" required></label><label>Heure<input name="time" type="time"></label></div>
+      <div class="form-row"><label>Type<select name="type"><option>Diagnostic</option><option>Agence immobilière</option><option>Notaire</option><option>Visite maison</option><option>Déménagement</option><option>Personnel</option><option>Autre</option></select></label><label>Participants<select name="assignee"><option>Commun</option><option>Marion</option><option>Philippe</option></select></label></div>
+      <label>Lieu<input name="location" placeholder="Adresse ou visioconférence"></label>
+      <label>Notes<textarea name="notes" rows="3" placeholder="Contact, documents à apporter…"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteAppointmentButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-appointment">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>
