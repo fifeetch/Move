@@ -73,7 +73,8 @@ let appointments = [];
 let currentStatus = "all";
 let currentBudgetType = "all";
 let currentBoxStatus = "all";
-let calendarCursor = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let calendarCursor = new Date();
+let agendaViewMode = "month";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -206,16 +207,29 @@ function agendaEvents(){
 }
 
 function renderAgenda(){
-  const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth();
-  $("#calendarMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"}).format(calendarCursor);
-  const first=new Date(year,month,1),mondayOffset=(first.getDay()+6)%7,start=new Date(year,month,1-mondayOffset);
   const events=agendaEvents(),today=new Date().toISOString().slice(0,10);
-  $("#calendarGrid").innerHTML=Array.from({length:42},(_,index)=>{
-    const date=new Date(start);date.setDate(start.getDate()+index);
+  $("#agendaSummary").textContent=`${tasks.filter(task=>task.deadline).length} tâche(s) avec échéance · ${appointments.length} rendez-vous`;
+  const grid=$("#calendarGrid"),weekdays=$(".calendar-weekdays");
+  grid.className=`calendar-grid ${agendaViewMode}-view`;
+  weekdays.style.display=agendaViewMode==="day"?"none":"grid";
+  const dayHtml=(date,outside=false,limit=3)=>{
     const key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
     const dayEvents=events.filter(item=>item.date===key).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-    return `<div class="calendar-day ${date.getMonth()!==month?"outside":""} ${key===today?"today":""}" data-calendar-date="${key}"><span class="day-number">${date.getDate()}</span><div class="calendar-events">${dayEvents.slice(0,3).map(item=>`<button class="calendar-event ${item.kind==="appointment"?"appointment":""} ${item.kind==="task"&&!item.done&&item.date<today?"overdue":""}" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}" title="${esc(item.title)}">${item.time?esc(item.time)+" ":""}${esc(item.title)}</button>`).join("")}${dayEvents.length>3?`<span class="more-events">+${dayEvents.length-3} autre(s)</span>`:""}</div></div>`;
-  }).join("");
+    return `<div class="calendar-day ${outside?"outside":""} ${key===today?"today":""}" data-calendar-date="${key}"><span class="day-number">${agendaViewMode==="month"?date.getDate():new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"short"}).format(date)}</span><div class="calendar-events">${dayEvents.slice(0,limit).map(item=>`<button class="calendar-event ${item.kind==="appointment"?"appointment":""} ${item.kind==="task"&&!item.done&&item.date<today?"overdue":""}" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}" title="${esc(item.title)}">${item.time?esc(item.time)+" ":""}${esc(item.title)}${agendaViewMode!=="month"?` · ${esc(item.assignee||"Commun")}`:""}</button>`).join("")}${dayEvents.length>limit?`<span class="more-events">+${dayEvents.length-limit} autre(s)</span>`:""}</div></div>`;
+  };
+  if(agendaViewMode==="month"){
+    const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth(),first=new Date(year,month,1),mondayOffset=(first.getDay()+6)%7,start=new Date(year,month,1-mondayOffset);
+    $("#calendarMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"}).format(calendarCursor);
+    grid.innerHTML=Array.from({length:42},(_,index)=>{const date=new Date(start);date.setDate(start.getDate()+index);return dayHtml(date,date.getMonth()!==month,3);}).join("");
+  } else if(agendaViewMode==="week"){
+    const offset=(calendarCursor.getDay()+6)%7,start=new Date(calendarCursor);start.setDate(calendarCursor.getDate()-offset);
+    const end=new Date(start);end.setDate(start.getDate()+6);
+    $("#calendarMonth").textContent=`${new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(start)} – ${new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short",year:"numeric"}).format(end)}`;
+    grid.innerHTML=Array.from({length:7},(_,index)=>{const date=new Date(start);date.setDate(start.getDate()+index);return dayHtml(date,false,20);}).join("");
+  } else {
+    $("#calendarMonth").textContent=new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(calendarCursor);
+    grid.innerHTML=dayHtml(calendarCursor,false,50);
+  }
   const upcoming=events.filter(item=>item.kind==="appointment"||!item.done).filter(item=>item.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,10);
   $("#upcomingEvents").innerHTML=upcoming.map(item=>{
     const date=new Date(`${item.date}T12:00:00`);
@@ -604,8 +618,21 @@ $("#deleteAppointmentButton").addEventListener("click",async()=>{
 $("#statusFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$("#statusFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#budgetFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBudgetType=b.dataset.budgetType;$("#budgetFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderBudget();}));
 $("#boxFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBoxStatus=b.dataset.boxStatus;$("#boxFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderMove();}));
-$("#previousMonth").addEventListener("click",()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);renderAgenda();});
-$("#nextMonth").addEventListener("click",()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);renderAgenda();});
+function moveAgenda(direction){
+  const next=new Date(calendarCursor);
+  if(agendaViewMode==="month")next.setMonth(next.getMonth()+direction);
+  else if(agendaViewMode==="week")next.setDate(next.getDate()+7*direction);
+  else next.setDate(next.getDate()+direction);
+  calendarCursor=next;renderAgenda();
+}
+$("#previousMonth").addEventListener("click",()=>moveAgenda(-1));
+$("#nextMonth").addEventListener("click",()=>moveAgenda(1));
+$("#agendaToday").addEventListener("click",()=>{calendarCursor=new Date();renderAgenda();});
+$("#agendaViewSwitcher").querySelectorAll(".filter").forEach(button=>button.addEventListener("click",()=>{
+  agendaViewMode=button.dataset.agendaView;
+  $("#agendaViewSwitcher").querySelectorAll(".filter").forEach(item=>item.classList.toggle("active",item===button));
+  renderAgenda();
+}));
 $("#personFilter").addEventListener("change",renderTasks);
 $("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
 $("#authForm").addEventListener("submit",async event=>{

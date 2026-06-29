@@ -100,7 +100,8 @@
         </section>
 
         <section class="view" id="agendaView">
-          <div class="page-title"><div><p class="eyebrow">CALENDRIER PARTAGÉ</p><h1>Agenda</h1><p>Tâches, rendez-vous et visites réunis au même endroit.</p></div><button class="primary-button" id="addAppointmentButton">＋ Ajouter un rendez-vous</button></div>
+          <div class="page-title"><div><p class="eyebrow">CALENDRIER PARTAGÉ</p><h1>Agenda</h1><p id="agendaSummary">Tâches, rendez-vous et visites réunis au même endroit.</p></div><button class="primary-button" id="addAppointmentButton">＋ Ajouter un rendez-vous</button></div>
+          <div class="agenda-toolbar"><div class="filter-group" id="agendaViewSwitcher"><button class="filter active" data-agenda-view="month">Mois</button><button class="filter" data-agenda-view="week">Semaine</button><button class="filter" data-agenda-view="day">Jour</button></div><button class="text-button" id="agendaToday">Aujourd’hui</button></div>
           <div class="agenda-layout">
             <section class="panel calendar-panel">
               <div class="calendar-header"><button class="icon-button" id="previousMonth" aria-label="Mois précédent">←</button><h2 id="calendarMonth"></h2><button class="icon-button" id="nextMonth" aria-label="Mois suivant">→</button></div>
@@ -279,6 +280,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>
