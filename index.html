@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
   <div class="app-shell">
@@ -50,54 +50,12 @@
 
       <div class="content">
         <section class="view active" id="dashboardView">
-          <div class="hero">
-            <div>
-              <p class="eyebrow">PROJET DE VIE · ÉTÉ 2026</p>
-              <h1>Direction la montagne.</h1>
-              <p>Un seul endroit pour avancer sereinement, étape après étape.</p>
-            </div>
-            <div class="hero-mountains" aria-hidden="true">
-              <span class="sun"></span><span class="mountain back"></span><span class="mountain front"></span><span class="cabin">⌂</span>
-            </div>
-          </div>
-
-          <div class="stats-grid">
-            <article class="stat-card">
-              <div class="stat-head"><span>Progression globale</span><i class="stat-icon green">↗</i></div>
-              <div class="stat-value"><strong id="progressPercent">0%</strong><small id="progressCaption">0 tâche terminée</small></div>
-              <div class="progress"><span id="progressBar"></span></div>
-            </article>
-            <article class="stat-card">
-              <div class="stat-head"><span>À faire</span><i class="stat-icon sand">✓</i></div>
-              <div class="stat-value"><strong id="todoCount">0</strong><small>tâches restantes</small></div>
-              <div class="mini-people"><span class="dot marion-bg"></span><span id="marionCount">0 pour Marion</span><span class="dot philippe-bg"></span><span id="philippeCount">0 pour Philippe</span></div>
-            </article>
-            <article class="stat-card">
-              <div class="stat-head"><span>Budget prévu</span><i class="stat-icon rust">€</i></div>
-              <div class="stat-value"><strong id="budgetTotal">0 €</strong><small id="budgetSpent">0 € dépensés</small></div>
-              <div class="progress budget"><span id="budgetBar"></span></div>
-            </article>
-            <article class="stat-card">
-              <div class="stat-head"><span>Prochaine échéance</span><i class="stat-icon blue">◷</i></div>
-              <div class="deadline"><strong id="nextDeadlineDay">—</strong><div><b id="nextDeadlineMonth">À VENIR</b><span id="nextDeadlineTitle">Aucune échéance</span></div></div>
-            </article>
-          </div>
-
-          <div class="dashboard-grid">
-            <section class="panel priority-panel">
-              <div class="panel-heading"><div><p class="eyebrow">À NE PAS MANQUER</p><h2>Priorités de la semaine</h2></div><button class="text-button" data-go="tasks">Voir tout →</button></div>
-              <div id="priorityList" class="priority-list"></div>
-            </section>
-            <section class="panel steps-panel">
-              <div class="panel-heading"><div><p class="eyebrow">LE CHEMIN</p><h2>Les grandes étapes</h2></div></div>
-              <div id="stepsList" class="steps-list"></div>
-            </section>
-          </div>
-
-          <section class="panel rooms-panel">
-            <div class="panel-heading"><div><p class="eyebrow">TRI & PRÉPARATION</p><h2>Avancement par espace</h2></div><button class="text-button" data-go="tasks">Toutes les pièces →</button></div>
-            <div id="roomCards" class="room-grid"></div>
-          </section>
+          <div class="dashboard-heading"><div><p class="eyebrow">TABLEAU DE BORD</p><h1>Vue d’ensemble</h1><p>Les informations utiles, sans le bruit.</p></div><div class="dashboard-switcher" id="dashboardSwitcher"><button class="active" data-dashboard-mode="daily">Vue quotidienne</button><button data-dashboard-mode="project">Vue projet</button></div></div>
+          <div id="dashboardKpis" class="stats-grid dashboard-kpis"></div>
+          <section class="panel next-actions-panel"><div class="panel-heading"><div><p class="eyebrow">À NE PAS MANQUER</p><h2>Prochaines actions</h2></div><button class="text-button" data-go="tasks">Voir toutes les tâches →</button></div><div id="nextActions" class="next-actions-grid"></div></section>
+          <section class="panel undated-panel"><button id="toggleUndatedTasks" class="undated-toggle"><span>▦</span><strong id="undatedTaskCount">Tâches à planifier · 0</strong><small>Ces tâches n’ont pas encore de date</small><b>⌄</b></button><div id="undatedTaskList" class="undated-task-list" hidden></div></section>
+          <section class="panel workload-panel"><div class="panel-heading"><div><p class="eyebrow">ÉQUILIBRE</p><h2>Répartition de la charge</h2></div></div><div id="workloadList" class="workload-list"></div></section>
+          <section class="panel project-progress-panel" id="projectProgressPanel"><div class="panel-heading"><div><p class="eyebrow">PROJET GLOBAL</p><h2>Avancement par domaine</h2></div></div><div id="projectProgressList" class="project-progress-grid"></div></section>
         </section>
 
         <section class="view" id="agendaView">
@@ -115,18 +73,9 @@
         </section>
 
         <section class="view" id="tasksView">
-          <div class="page-title"><div><p class="eyebrow">ORGANISATION</p><h1>Toutes les tâches</h1><p>La liste complète, claire et partagée.</p></div><button class="primary-button add-task-secondary">＋ Nouvelle tâche</button></div>
-          <div class="toolbar">
-            <div class="filter-group" id="statusFilters">
-              <button class="filter active" data-status="all">Toutes</button>
-              <button class="filter" data-status="todo">À faire</button>
-              <button class="filter" data-status="doing">En cours</button>
-              <button class="filter" data-status="overdue">En retard</button>
-              <button class="filter" data-status="done">Terminées</button>
-            </div>
-            <select id="personFilter" aria-label="Filtrer par personne"><option value="all">Toute l’équipe</option><option value="Marion">Marion</option><option value="Philippe">Philippe</option><option value="Commun">En commun</option></select>
-          </div>
-          <div id="taskGroups" class="task-groups"></div>
+          <div class="page-title"><div><p class="eyebrow">ORGANISATION</p><h1>Toutes les tâches</h1><p>Déplacez chaque tâche au fil de son avancement.</p></div><button class="primary-button add-task-secondary">＋ Nouvelle tâche</button></div>
+          <div class="kanban-toolbar"><label class="document-search"><span>⌕</span><input id="taskSearch" type="search" placeholder="Rechercher une tâche…"></label><select id="personFilter" aria-label="Filtrer par personne"><option value="all">Toute l’équipe</option><option value="Marion">Marion</option><option value="Philippe">Philippe</option><option value="Commun">En commun</option></select><select id="taskCategoryFilter" aria-label="Filtrer par catégorie"><option value="all">Toutes les catégories</option></select><select id="taskPeriodFilter" aria-label="Filtrer par période"><option value="all">Toutes les périodes</option><option value="overdue">En retard</option><option value="week">Cette semaine</option><option value="month">Ce mois</option><option value="undated">Sans date</option></select></div>
+          <div id="taskKanban" class="task-kanban"></div>
         </section>
 
         <section class="view" id="saleView">
@@ -333,6 +282,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="app.js?v=15"></script>
+  <script type="module" src="app.js?v=16"></script>
 </body>
 </html>

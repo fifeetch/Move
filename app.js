@@ -73,6 +73,7 @@ let currentBoxStatus = "all";
 let calendarCursor = new Date();
 let agendaViewMode = "month";
 let currentDocumentScope = "all";
+let dashboardMode = localStorage.getItem("capMontagneDashboardMode")||"daily";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -136,56 +137,52 @@ function taskRow(t, full=false) {
 }
 
 function renderDashboard() {
-  const done = tasks.filter(t=>t.done).length;
-  const left = tasks.length-done;
-  const percent = Math.round(done/tasks.length*100) || 0;
-  $("#progressPercent").textContent=`${percent}%`;
-  $("#progressCaption").textContent=`${done} tâche${done>1?"s":""} terminée${done>1?"s":""}`;
-  $("#progressBar").style.width=`${percent}%`;
-  $("#todoCount").textContent=left;
-  $("#navTaskCount").textContent=left;
-  $("#marionCount").textContent=`${tasks.filter(t=>!t.done&&(t.assignee==="Marion"||t.assignee==="Commun")).length} pour Marion`;
-  $("#philippeCount").textContent=`${tasks.filter(t=>!t.done&&(t.assignee==="Philippe"||t.assignee==="Commun")).length} pour Philippe`;
-  const priorities=tasks.filter(t=>!t.done&&(t.priority==="high"||isOverdue(t))).sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).slice(0,5);
-  $("#priorityList").innerHTML=priorities.map(t=>taskRow(t)).join("") || `<p class="empty-state">Tout est sous contrôle 🌿</p>`;
-  const upcoming=[...tasks.filter(t=>!t.done&&t.deadline).map(t=>({title:t.title,date:t.deadline})),...appointments.filter(item=>item.date).map(item=>({title:item.title,date:item.date}))].sort((a,b)=>a.date.localeCompare(b.date))[0];
-  if(upcoming){
-    const date=new Date(`${upcoming.date}T12:00:00`);
-    $("#nextDeadlineDay").textContent=date.getDate();
-    $("#nextDeadlineMonth").textContent=new Intl.DateTimeFormat("fr-FR",{month:"long"}).format(date).toUpperCase();
-    $("#nextDeadlineTitle").textContent=upcoming.title;
-  } else {
-    $("#nextDeadlineDay").textContent="—";$("#nextDeadlineMonth").textContent="À VENIR";$("#nextDeadlineTitle").textContent="Aucune échéance";
-  }
-  const steps=[
-    ["1","Préparer la maison","Tri et nettoyage"],
-    ["2","Vendre la maison","Agence, diagnostics, notaire"],
-    ["3","Trouver notre nouveau nid","Dossier et visites"],
-    ["4","Organiser le départ","Cartons et transport"],
-    ["5","S’installer","Nouvelles habitudes"]
+  const today=new Date(),todayKey=today.toLocaleDateString("en-CA"),weekEnd=new Date(today);weekEnd.setDate(today.getDate()+7);
+  const weekKey=weekEnd.toLocaleDateString("en-CA"),open=tasks.filter(task=>!task.done),done=tasks.length-open.length;
+  $("#navTaskCount").textContent=open.length;
+  $$("#dashboardSwitcher [data-dashboard-mode]").forEach(button=>button.classList.toggle("active",button.dataset.dashboardMode===dashboardMode));
+  const datedEvents=[...open.filter(task=>task.deadline).map(task=>({...task,kind:"task",date:task.deadline})),...appointments.filter(item=>item.date).map(item=>({...item,kind:"appointment"}))].sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  const overdue=datedEvents.filter(item=>item.date<todayKey),todayEvents=datedEvents.filter(item=>item.date===todayKey),week=datedEvents.filter(item=>item.date>todayKey&&item.date<=weekKey);
+  const planned=expenses.reduce((sum,item)=>sum+Number(item.planned),0),spent=expenses.reduce((sum,item)=>sum+Number(item.spent),0);
+  const readyDocs=saleDocuments.filter(item=>item.status==="done").length,readyBoxes=movingBoxes.filter(box=>["ready","moved","unpacked"].includes(box.status)).length;
+  const kpis=dashboardMode==="daily"?[
+    ["Aujourd’hui",todayEvents.length,"action(s) datée(s)","✓"],
+    ["En retard",overdue.length,"à traiter","!"],
+    ["Cette semaine",week.length,"dans les 7 jours","▦"],
+    ["Prochain rendez-vous",appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0]?.date?formatDate(appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0].date):"—","agenda","◷"]
+  ]:[
+    ["Progression",`${Math.round(done/Math.max(1,tasks.length)*100)} %`,`${done}/${tasks.length} tâches`,"↗"],
+    ["Budget",formatMoney(spent),`sur ${formatMoney(planned)}`,"€"],
+    ["Documents",`${readyDocs}/${saleDocuments.length}`,"pièces prêtes","▤"],
+    ["Cartons",`${readyBoxes}/${movingBoxes.length}`,"prêts ou déplacés","▣"]
   ];
-  const stepCategories=[["Tri","Façade","Salon","Chambre","Cave"],["Vente de la maison"],["Nouveau logement"],["Déménagement","Administratif"],[]];
-  $("#stepsList").innerHTML=steps.map((s,i)=>{
-    const list=i===4?movingBoxes.filter(box=>box.status==="unpacked"):tasks.filter(task=>stepCategories[i].some(category=>task.category.includes(category)));
-    const complete=list.length&&list.every(item=>item.done||item.status==="unpacked");
-    const started=list.some(item=>item.done||item.status==="doing"||item.status==="ready"||item.status==="moved");
-    return `<div class="step ${!started&&!complete?"future":""}"><span class="step-number">${complete?"✓":s[0]}</span><div><strong>${s[1]}</strong><span>${s[2]}</span></div><b>${complete?"Terminé":started?"En cours":"À venir"}</b></div>`;
+  $("#dashboardKpis").innerHTML=kpis.map(([label,value,caption,icon])=>`<article class="stat-card"><div class="stat-head"><span>${label}</span><i class="stat-icon green">${icon}</i></div><div class="stat-value"><strong>${value}</strong><small>${caption}</small></div></article>`).join("");
+  const actionGroup=(title,list,css="")=>`<section class="action-group ${css}"><h3>${title}<span>${list.length}</span></h3>${list.slice(0,6).map(item=>`<button class="dashboard-action" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}"><time>${formatDate(item.date)}</time><span><strong>${esc(item.title)}</strong><small>${esc(item.assignee||item.type||"Commun")}</small></span></button>`).join("")||'<p>Rien à signaler</p>'}</section>`;
+  $("#nextActions").innerHTML=actionGroup("En retard",overdue,"overdue")+actionGroup("Aujourd’hui",todayEvents)+actionGroup("Cette semaine",week);
+  const undated=open.filter(task=>!task.deadline).sort((a,b)=>(a.priority==="high"?-1:1));
+  $("#undatedTaskCount").textContent=`Tâches à planifier · ${undated.length}`;
+  $("#undatedTaskList").innerHTML=undated.map(task=>taskRow(task)).join("")||'<p class="empty-contact">Toutes les tâches sont planifiées.</p>';
+  const people=["Marion","Philippe","Commun"];
+  $("#workloadList").innerHTML=people.map(person=>{
+    const remaining=open.filter(task=>task.assignee===person),late=remaining.filter(isOverdue).length,width=Math.round(remaining.length/Math.max(1,...people.map(name=>open.filter(task=>task.assignee===name).length))*100);
+    return `<article class="workload-row"><span class="workload-avatar ${person}">${person==="Commun"?"M+P":person[0]}</span><strong>${person}</strong><i class="progress"><span style="width:${width}%"></span></i><span>${remaining.length} restante${remaining.length>1?"s":""}</span><b>${late} en retard</b></article>`;
   }).join("");
-  const roomNames=["Façade","Salon","Chambre","Véranda","Cave"];
-  $("#roomCards").innerHTML=roomNames.map(name=>{
-    const list=tasks.filter(t=>t.category.includes(name));
-    const p=list.length?Math.round(list.filter(t=>t.done).length/list.length*100):0;
-    return `<div class="room-card"><div><strong>${name}</strong><span>${p}%</span></div><div class="progress"><span style="width:${p}%"></span></div></div>`;
-  }).join("");
+  const domains=[["Vente",task=>task.category==="Vente de la maison"],["Maison",task=>["Façade","Salon","Chambre","Véranda","Cave","Extérieur","Tri"].some(value=>task.category.includes(value))],["Logement",task=>task.category==="Nouveau logement"],["Déménagement",task=>["Déménagement","Administratif"].includes(task.category)],["Documents",()=>false]];
+  $("#projectProgressList").innerHTML=domains.map(([label,match])=>{const list=label==="Documents"?saleDocuments:tasks.filter(match),complete=label==="Documents"?list.filter(item=>item.status==="done").length:list.filter(item=>item.done).length,percent=Math.round(complete/Math.max(1,list.length)*100);return `<article><header><strong>${label}</strong><span>${percent}%</span></header><div class="progress"><span style="width:${percent}%"></span></div><small>${complete}/${list.length} terminé(s)</small></article>`;}).join("");
+  $("#projectProgressPanel").hidden=dashboardMode!=="project";
 }
 
 function renderTasks() {
   const person=$("#personFilter").value;
-  const query=$("#globalSearch").value.toLowerCase().trim();
-  const filtered=tasks.filter(t=>(currentStatus==="all"||(currentStatus==="done"?t.done:currentStatus==="overdue"?isOverdue(t):!t.done&&t.status===currentStatus))&&(person==="all"||t.assignee===person)&&(t.title.toLowerCase().includes(query)||t.category.toLowerCase().includes(query)||(t.notes||"").toLowerCase().includes(query)))
-    .sort((a,b)=>a.done-b.done||(a.deadline||"9999").localeCompare(b.deadline||"9999")||a.title.localeCompare(b.title));
-  const grouped=Object.groupBy ? Object.groupBy(filtered,t=>t.category) : filtered.reduce((a,t)=>((a[t.category]??=[]).push(t),a),{});
-  $("#taskGroups").innerHTML=Object.keys(grouped).length?Object.entries(grouped).sort().map(([category,list])=>`<section class="panel task-group"><h3>${esc(category)} · ${list.length}</h3>${list.map(t=>taskRow(t,true)).join("")}</section>`).join(""):`<div class="empty-state">Aucune tâche ne correspond à ces filtres.</div>`;
+  const query=$("#taskSearch").value.toLowerCase().trim(),category=$("#taskCategoryFilter").value,period=$("#taskPeriodFilter").value;
+  const today=new Date(),todayKey=today.toLocaleDateString("en-CA"),weekEnd=new Date(today);weekEnd.setDate(today.getDate()+7);const monthEnd=new Date(today.getFullYear(),today.getMonth()+1,0).toLocaleDateString("en-CA");
+  const categories=[...new Set(tasks.map(task=>task.category))].sort(),categorySelect=$("#taskCategoryFilter"),selected=categorySelect.value;
+  categorySelect.innerHTML=`<option value="all">Toutes les catégories</option>${categories.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;categorySelect.value=categories.includes(selected)?selected:"all";
+  const periodMatches=task=>period==="all"||period==="overdue"&&isOverdue(task)||period==="week"&&task.deadline>=todayKey&&task.deadline<=weekEnd.toLocaleDateString("en-CA")||period==="month"&&task.deadline>=todayKey&&task.deadline<=monthEnd||period==="undated"&&!task.deadline;
+  const filtered=tasks.filter(task=>(person==="all"||task.assignee===person)&&(category==="all"||task.category===category)&&periodMatches(task)&&(`${task.title} ${task.category} ${task.notes||""}`).toLowerCase().includes(query));
+  const columns=[["planning","À planifier",task=>!task.done&&task.status!=="doing"&&!task.deadline],["todo","À faire",task=>!task.done&&task.status!=="doing"&&Boolean(task.deadline)],["doing","En cours",task=>!task.done&&task.status==="doing"],["done","Terminé",task=>task.done]];
+  const card=task=>`<article class="kanban-card ${isOverdue(task)?"overdue":""}" draggable="true" data-kanban-task="${task.id}"><button class="kanban-card-main edit-task"><strong>${esc(task.title)}</strong><small>${esc(task.category)}</small></button><footer><span class="person-pill ${task.assignee}">${esc(task.assignee)}</span><time>${task.deadline?formatDate(task.deadline):"Sans date"}</time><i class="${task.priority==="high"?"high":""}">${task.priority==="high"?"Haute":"Normale"}</i></footer></article>`;
+  $("#taskKanban").innerHTML=columns.map(([status,label,match])=>{const list=filtered.filter(match).sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999"));return `<section class="kanban-column" data-kanban-status="${status}"><header><h2>${label}</h2><span>${list.length}</span></header><div class="kanban-cards">${list.map(card).join("")||'<p class="kanban-empty">Déposez une tâche ici</p>'}</div><button class="text-button add-task-secondary">＋ Ajouter une tâche</button></section>`;}).join("");
 }
 
 function renderSale() {
@@ -258,9 +255,9 @@ function renderDocuments(){
 function renderBudget() {
   const planned=expenses.reduce((s,e)=>s+Number(e.planned),0), spent=expenses.reduce((s,e)=>s+Number(e.spent),0);
   const overrun=expenses.reduce((s,e)=>s+Math.max(0,Number(e.spent)-Number(e.planned)),0);
-  $("#budgetTotal").textContent=formatMoney(planned);
-  $("#budgetSpent").textContent=`${formatMoney(spent)} dépensés`;
-  $("#budgetBar").style.width=`${Math.min(100,planned?spent/planned*100:0)}%`;
+  if($("#budgetTotal"))$("#budgetTotal").textContent=formatMoney(planned);
+  if($("#budgetSpent"))$("#budgetSpent").textContent=`${formatMoney(spent)} dépensés`;
+  if($("#budgetBar"))$("#budgetBar").style.width=`${Math.min(100,planned?spent/planned*100:0)}%`;
   $("#budgetPageTotal").textContent=formatMoney(planned);
   $("#budgetPageSpent").textContent=formatMoney(spent);
   $("#budgetRemaining").textContent=formatMoney(planned-spent);
@@ -737,6 +734,8 @@ $("#appointmentForm").addEventListener("submit",async event=>{
   setSyncing(true);try{if(id)await updateDoc(doc(db,"households",activeHouseholdId,"appointments",id),payload);else await addDoc(collection(db,"households",activeHouseholdId,"appointments"),{...payload,createdAt:serverTimestamp()});$("#appointmentDialog").close();toast(id?"Rendez-vous mis à jour !":"Rendez-vous ajouté !");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 document.addEventListener("click",async e=>{
+  const dynamicAddTask=e.target.closest("#taskKanban .add-task-secondary");
+  if(dynamicAddTask){openTask();return;}
   const preview=e.target.closest(".preview-document");
   if(preview){
     const id=preview.closest("[data-document-id]").dataset.documentId,item=saleDocuments.find(document=>String(document.id)===id);
@@ -796,8 +795,8 @@ document.addEventListener("click",async e=>{
   }
   const edit=e.target.closest(".edit-task");
   if(edit){
-    const row=edit.closest("[data-id]");if(!row)return;
-    const id=row.dataset.id,task=tasks.find(t=>String(t.id)===id);
+    const row=edit.closest("[data-id],[data-kanban-task]");if(!row)return;
+    const id=row.dataset.id||row.dataset.kanbanTask,task=tasks.find(t=>String(t.id)===id);
     if(task)openTask(task);
     return;
   }
@@ -848,7 +847,6 @@ $("#deleteAppointmentButton").addEventListener("click",async()=>{
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce rendez-vous ?"))return;
   setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"appointments",id));$("#appointmentDialog").close();toast("Rendez-vous supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
-$("#statusFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentStatus=b.dataset.status;$("#statusFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderTasks();}));
 $("#budgetFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBudgetType=b.dataset.budgetType;$("#budgetFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderBudget();}));
 $("#boxFilters").querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{currentBoxStatus=b.dataset.boxStatus;$("#boxFilters").querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x===b));renderMove();}));
 function moveAgenda(direction){
@@ -867,7 +865,20 @@ $("#agendaViewSwitcher").querySelectorAll(".filter").forEach(button=>button.addE
   renderAgenda();
 }));
 $("#personFilter").addEventListener("change",renderTasks);
-$("#globalSearch").addEventListener("input",()=>{renderTasks();if($("#globalSearch").value)goTo("tasks");});
+$("#taskSearch").addEventListener("input",renderTasks);
+$("#taskCategoryFilter").addEventListener("change",renderTasks);
+$("#taskPeriodFilter").addEventListener("change",renderTasks);
+$("#globalSearch").addEventListener("input",()=>{if($("#globalSearch").value){$("#taskSearch").value=$("#globalSearch").value;goTo("tasks");renderTasks();}});
+$("#dashboardSwitcher").addEventListener("click",event=>{const button=event.target.closest("[data-dashboard-mode]");if(!button)return;dashboardMode=button.dataset.dashboardMode;localStorage.setItem("capMontagneDashboardMode",dashboardMode);renderDashboard();});
+$("#toggleUndatedTasks").addEventListener("click",()=>{$("#undatedTaskList").hidden=!$("#undatedTaskList").hidden;$("#toggleUndatedTasks").classList.toggle("open",!$("#undatedTaskList").hidden);});
+$("#taskKanban").addEventListener("dragstart",event=>{const card=event.target.closest("[data-kanban-task]");if(card)event.dataTransfer.setData("text/plain",card.dataset.kanbanTask);});
+$("#taskKanban").addEventListener("dragover",event=>{if(event.target.closest("[data-kanban-status]"))event.preventDefault();});
+$("#taskKanban").addEventListener("drop",async event=>{
+  const column=event.target.closest("[data-kanban-status]");if(!column||!activeHouseholdId)return;event.preventDefault();
+  const id=event.dataTransfer.getData("text/plain"),status=column.dataset.kanbanStatus,payload={done:status==="done",status:status==="doing"?"doing":status==="done"?"done":"todo",updatedAt:serverTimestamp()};
+  if(status==="planning")payload.deadline="";
+  setSyncing(true);try{await updateDoc(doc(db,"households",activeHouseholdId,"tasks",id),payload);}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 $("#authForm").addEventListener("submit",async event=>{
   event.preventDefault();
   const form=event.currentTarget,data=new FormData(form),submit=$(".auth-submit");
