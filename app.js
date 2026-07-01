@@ -68,6 +68,7 @@ let tasks = seedTasks;
 let expenses = seedExpenses;
 let contacts = [];
 let saleDocuments = [];
+let guarantors = [];
 let movingBoxes = [];
 let appointments = [];
 let currentStatus = "all";
@@ -84,6 +85,7 @@ let unsubscribeTasks = null;
 let unsubscribeExpenses = null;
 let unsubscribeContacts = null;
 let unsubscribeDocuments = null;
+let unsubscribeGuarantors = null;
 let unsubscribeBoxes = null;
 let unsubscribeAppointments = null;
 let deferredInstallPrompt = null;
@@ -95,6 +97,7 @@ const formatMoney = n => new Intl.NumberFormat("fr-FR",{style:"currency",currenc
 const formatDate = d => d ? new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(new Date(`${d}T12:00:00`)) : "Sans date";
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const safeUrl = value => /^https?:\/\//i.test(value||"") ? esc(value) : "";
+const cleanFileName = value => String(value||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"");
 const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadline}T23:59:59`) < new Date();
 
 function taskRow(t, full=false) {
@@ -181,6 +184,19 @@ function renderDocumentBreadcrumb(){
   $("#documentBreadcrumb").innerHTML=scopes.map((scope,index)=>`${index?'<span aria-hidden="true">›</span>':""}<button type="button" data-document-breadcrumb="${scope}" ${scope===currentDocumentScope?'aria-current="page"':""}>${scope==="all"?"Documents":documentScopeLabels[scope]}</button>`).join("");
   $$("#documentsView [data-document-scope]").forEach(button=>button.classList.toggle("active",button.dataset.documentScope===currentDocumentScope));
 }
+function guarantorName(item){
+  return item?`${item.firstName||""} ${item.lastName||""}`.trim():"Garant";
+}
+function renderGuarantors(){
+  $("#guarantorList").innerHTML=guarantors.length?guarantors.map(item=>{
+    const documents=saleDocuments.filter(document=>document.guarantorId===item.id);
+    const ready=documents.filter(document=>document.status==="done").length;
+    return `<article class="guarantor-card" data-guarantor-id="${item.id}"><header><span class="guarantor-avatar">${esc((item.firstName||"G")[0])}${esc((item.lastName||"")[0])}</span><div><strong>${esc(guarantorName(item))}</strong><small>${esc(item.relationship||"Garant")}${item.monthlyIncome?` · ${formatMoney(item.monthlyIncome)}/mois`:""}</small></div><button class="edit-task edit-guarantor">✎ Modifier</button></header><div class="guarantor-progress"><span>${ready}/${documents.length} documents prêts</span><i class="progress"><span style="width:${documents.length?Math.round(ready/documents.length*100):0}%"></span></i></div><div class="guarantor-contact">${item.phone?`<a href="tel:${esc(item.phone)}">${esc(item.phone)}</a>`:""}${item.email?`<a href="mailto:${esc(item.email)}">${esc(item.email)}</a>`:""}</div><button class="text-button add-guarantor-document" data-guarantor-document="${item.id}">＋ Ajouter un document</button></article>`;
+  }).join(""):`<div class="empty-contact">Aucun garant enregistré. Ajoutez une fiche pour suivre ses coordonnées et ses documents.</div>`;
+  const select=$("#documentGuarantor"),current=select.value;
+  select.innerHTML=`<option value="">Sélectionner un garant</option>${guarantors.map(item=>`<option value="${item.id}">${esc(guarantorName(item))}</option>`).join("")}`;
+  if(guarantors.some(item=>item.id===current))select.value=current;
+}
 function documentMatchesScope(item,scope){
   const space=item.space||"current",folder=item.folder||"sale";
   if(scope==="all")return true;
@@ -199,15 +215,17 @@ function renderDocuments(){
   $("#rentalProgress").style.width=`${rental.length?Math.round(ready/rental.length*100):0}%`;
   $("#documentLibraryTitle").textContent=documentScopeLabels[currentDocumentScope];
   renderDocumentBreadcrumb();
-  const query=$("#documentSearch").value.toLowerCase().trim(),status=$("#documentStatusFilter").value;
-  const filtered=saleDocuments.filter(item=>documentMatchesScope(item,currentDocumentScope)&&(status==="all"||item.status===status)&&(`${item.name} ${item.notes||""} ${documentFolderLabels[item.folder]||""}`).toLowerCase().includes(query))
+  const query=$("#documentSearch").value.toLowerCase().trim(),status=$("#documentStatusFilter").value,owner=$("#documentOwnerFilter").value;
+  const filtered=saleDocuments.filter(item=>documentMatchesScope(item,currentDocumentScope)&&(status==="all"||item.status===status)&&(owner==="all"||item.owner===owner)&&(`${item.name} ${item.notes||""} ${documentFolderLabels[item.folder]||""}`).toLowerCase().includes(query))
     .sort((a,b)=>(b.updatedAt?.seconds||b.createdAt?.seconds||0)-(a.updatedAt?.seconds||a.createdAt?.seconds||0));
   $("#documentsLibraryList").innerHTML=filtered.length?filtered.map(item=>{
     const space=(item.space||"current")==="current"?"Maison actuelle":"Futur logement",folder=documentFolderLabels[item.folder||"sale"]||"Autre";
-    const owner=item.owner==="marion"?"Marion":item.owner==="philippe"?"Philippe":item.owner==="guarantor"?(item.guarantorName||"Garant"):"Commun";
+    const linkedGuarantor=guarantors.find(guarantor=>guarantor.id===item.guarantorId);
+    const owner=item.owner==="marion"?"Marion":item.owner==="philippe"?"Philippe":item.owner==="guarantor"?guarantorName(linkedGuarantor):"Commun";
     const validity=item.deadline?` · Validité : ${formatDate(item.deadline)}`:"";
-    return `<div class="document-library-row" data-document-id="${item.id}"><span class="document-file-icon">▤</span><div><strong>${esc(item.name)}</strong><small>${esc(owner)}${validity}${item.fileName?` · ${esc(item.fileName)}`:""}</small></div><span class="document-path">▰ ${space} › ${folder}</span>${safeUrl(item.url)?`<a href="${safeUrl(item.url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`:"<span></span>"}<b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`;
+    return `<div class="document-library-row" data-document-id="${item.id}"><span class="document-file-icon">▤</span><div><strong>${esc(item.name)}</strong><small>${esc(owner)}${validity}${item.fileName?` · ${esc(item.fileName)}`:""}</small></div><span class="document-path">▰ ${space} › ${folder}</span>${safeUrl(item.url)?`<button class="text-button preview-document">Aperçu</button>`:"<span></span>"}<b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`;
   }).join(""):`<div class="empty-contact">Aucun document dans ce dossier.</div>`;
+  renderGuarantors();
 }
 
 function renderBudget() {
@@ -333,7 +351,9 @@ function documentDefaultsForScope(scope){
   return {space:scope==="all"?"current":"future",folder:"ourFile",owner:"common"};
 }
 function updateGuarantorField(){
-  $("#guarantorNameField").hidden=$("#documentOwner").value!=="guarantor";
+  const isGuarantor=$("#documentOwner").value==="guarantor";
+  $("#guarantorNameField").hidden=!isGuarantor;
+  $("#documentGuarantor").required=isGuarantor;
 }
 function openDocument(item=null){
   const form=$("#documentForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
@@ -342,9 +362,65 @@ function openDocument(item=null){
   const defaults=editing?{space:item.space||"current",folder:item.folder||"sale",owner:item.owner||"common"}:documentDefaultsForScope(currentDocumentScope);
   form.elements.space.value=defaults.space;updateDocumentFolders(defaults.space);
   form.elements.folder.value=defaults.folder;form.elements.owner.value=defaults.owner;
-  if(editing)["name","status","deadline","url","notes","guarantorName"].forEach(key=>form.elements[key].value=item[key]||"");
+  if(editing)["name","status","deadline","url","notes","guarantorId"].forEach(key=>form.elements[key].value=item[key]||"");
   updateGuarantorField();
   $("#documentDialog").showModal();
+}
+
+function openGuarantor(item=null){
+  const form=$("#guarantorForm"),editing=Boolean(item);form.reset();form.dataset.editing=editing?item.id:"";
+  $("#guarantorDialogTitle").textContent=editing?"Modifier le garant":"Ajouter un garant";
+  $("#deleteGuarantorButton").hidden=!editing;
+  if(editing)["firstName","lastName","relationship","monthlyIncome","phone","email","address","notes"].forEach(key=>form.elements[key].value=item[key]||"");
+  $("#guarantorDialog").showModal();
+}
+
+function openDocumentPreview(item){
+  const url=safeUrl(item.url);if(!url)return;
+  $("#documentPreviewTitle").textContent=item.name;
+  $("#documentDownloadLink").href=url;
+  $("#documentDownloadLink").download=item.fileName||cleanFileName(item.name);
+  const isImage=/\.(png|jpe?g|webp|gif)$/i.test(item.fileName||url);
+  $("#documentPreviewBody").innerHTML=isImage?`<img src="${url}" alt="${esc(item.name)}">`:`<iframe src="${url}" title="${esc(item.name)}"></iframe>`;
+  $("#documentPreviewDialog").showModal();
+}
+
+function rentalSummaryHtml(){
+  const rental=saleDocuments.filter(item=>item.space==="future"&&["ourFile","guarantors","lease"].includes(item.folder));
+  const rows=rental.map(item=>{
+    const guarantor=guarantors.find(value=>value.id===item.guarantorId);
+    const owner=item.owner==="marion"?"Marion":item.owner==="philippe"?"Philippe":item.owner==="guarantor"?guarantorName(guarantor):"Commun";
+    return `<tr><td>${esc(item.name)}</td><td>${esc(owner)}</td><td>${esc(documentFolderLabels[item.folder]||"")}</td><td>${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</td></tr>`;
+  }).join("");
+  return `<!doctype html><html lang="fr"><meta charset="utf-8"><title>Dossier locatif</title><style>body{font:14px Arial;color:#26332f;margin:40px}h1{color:#173a35}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}.ready{color:#23564c}</style><h1>Dossier locatif — Marion & Philippe</h1><p>Généré le ${new Intl.DateTimeFormat("fr-FR",{dateStyle:"long"}).format(new Date())}</p><h2>Garants</h2>${guarantors.map(item=>`<p><strong>${esc(guarantorName(item))}</strong> — ${esc(item.relationship||"Garant")}${item.phone?` — ${esc(item.phone)}`:""}${item.email?` — ${esc(item.email)}`:""}</p>`).join("")||"<p>Aucun garant.</p>"}<h2>Pièces du dossier</h2><table><thead><tr><th>Document</th><th>Personne</th><th>Dossier</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></html>`;
+}
+
+function printRentalSummary(){
+  const popup=window.open("","_blank");
+  if(!popup){toast("Autorisez les fenêtres contextuelles pour imprimer.");return;}
+  popup.opener=null;
+  popup.document.write(rentalSummaryHtml());popup.document.close();popup.focus();popup.print();
+}
+
+async function exportRentalZip(){
+  if(!window.JSZip){toast("Le module d’export n’est pas disponible.");return;}
+  const rental=saleDocuments.filter(item=>item.space==="future"&&["ourFile","guarantors","lease"].includes(item.folder)&&safeUrl(item.url));
+  setSyncing(true);
+  try{
+    const zip=new window.JSZip();zip.file("recapitulatif-dossier-locatif.html",rentalSummaryHtml());
+    const folders={ourFile:zip.folder("01-nos-documents"),guarantors:zip.folder("02-garants"),lease:zip.folder("03-bail")};
+    let skipped=0;
+    for(const item of rental){
+      try{
+        const response=await fetch(item.url);if(!response.ok)throw new Error("Téléchargement impossible");
+        const extension=(item.fileName||item.url).match(/\.[a-z0-9]{2,5}(?:\?|$)/i)?.[0]?.split("?")[0]||"";
+        folders[item.folder].file(`${cleanFileName(item.name)}${extension}`,await response.blob());
+      }catch{skipped++;}
+    }
+    const blob=await zip.generateAsync({type:"blob"});
+    const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`dossier-locatif-${new Date().toISOString().slice(0,10)}.zip`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+    toast(skipped?`Export créé · ${skipped} fichier(s) inaccessible(s)`:"Dossier locatif exporté !");
+  }catch(error){toast(error.message||"Export impossible.");}finally{setSyncing(false);}
 }
 
 function updateDocumentFolders(space){
@@ -427,9 +503,10 @@ function stopSubscriptions() {
   if(unsubscribeExpenses) unsubscribeExpenses();
   if(unsubscribeContacts) unsubscribeContacts();
   if(unsubscribeDocuments) unsubscribeDocuments();
+  if(unsubscribeGuarantors) unsubscribeGuarantors();
   if(unsubscribeBoxes) unsubscribeBoxes();
   if(unsubscribeAppointments) unsubscribeAppointments();
-  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;unsubscribeBoxes=null;unsubscribeAppointments=null;
+  unsubscribeTasks=null; unsubscribeExpenses=null;unsubscribeContacts=null;unsubscribeDocuments=null;unsubscribeGuarantors=null;unsubscribeBoxes=null;unsubscribeAppointments=null;
 }
 
 function subscribeToHousehold(householdId) {
@@ -450,6 +527,10 @@ function subscribeToHousehold(householdId) {
   unsubscribeDocuments=onSnapshot(collection(householdRef,"documents"),snapshot=>{
     saleDocuments=snapshot.docs.map(item=>({id:item.id,...item.data()}));
     renderSale();renderDocuments();setSyncing(false);
+  },error=>toast(firebaseMessage(error)));
+  unsubscribeGuarantors=onSnapshot(collection(householdRef,"guarantors"),snapshot=>{
+    guarantors=snapshot.docs.map(item=>({id:item.id,...item.data()}));
+    renderDocuments();setSyncing(false);
   },error=>toast(firebaseMessage(error)));
   unsubscribeBoxes=onSnapshot(collection(householdRef,"movingBoxes"),snapshot=>{
     movingBoxes=snapshot.docs.map(item=>({id:item.id,...item.data()}));
@@ -514,7 +595,26 @@ $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("op
 $("#documentSpace").addEventListener("change",event=>updateDocumentFolders(event.target.value));
 $("#documentOwner").addEventListener("change",updateGuarantorField);
 $("#documentSearch").addEventListener("input",renderDocuments);
+$("#documentOwnerFilter").addEventListener("change",renderDocuments);
 $("#documentStatusFilter").addEventListener("change",renderDocuments);
+$("#addGuarantorButton").addEventListener("click",()=>openGuarantor());
+$$(".close-guarantor").forEach(button=>button.addEventListener("click",()=>$("#guarantorDialog").close()));
+$$(".close-preview").forEach(button=>button.addEventListener("click",()=>$("#documentPreviewDialog").close()));
+$("#exportRentalButton").addEventListener("click",exportRentalZip);
+$("#printRentalButton").addEventListener("click",printRentalSummary);
+const documentDropZone=$("#documentDropZone"),documentFileInput=$("#documentForm").elements.file;
+["dragenter","dragover"].forEach(type=>documentDropZone.addEventListener(type,event=>{event.preventDefault();documentDropZone.classList.add("dragging");}));
+["dragleave","drop"].forEach(type=>documentDropZone.addEventListener(type,event=>{event.preventDefault();documentDropZone.classList.remove("dragging");}));
+documentDropZone.addEventListener("drop",event=>{
+  const file=event.dataTransfer.files[0];if(!file)return;
+  const transfer=new DataTransfer();transfer.items.add(file);documentFileInput.files=transfer.files;documentDropZone.querySelector("strong").textContent=file.name;
+  const name=$("#documentForm").elements.name;if(!name.value)name.value=file.name.replace(/\.[^.]+$/,"").replace(/[-_]+/g," ");
+});
+documentFileInput.addEventListener("change",()=>{
+  const file=documentFileInput.files[0];if(!file)return;
+  documentDropZone.querySelector("strong").textContent=file.name;
+  const name=$("#documentForm").elements.name;if(!name.value)name.value=file.name.replace(/\.[^.]+$/,"").replace(/[-_]+/g," ");
+});
 $$("#documentsView [data-document-scope]").forEach(button=>button.addEventListener("click",()=>setDocumentScope(button.dataset.documentScope,{scroll:true})));
 $("#documentBreadcrumb").addEventListener("click",event=>{
   const button=event.target.closest("[data-document-breadcrumb]");
@@ -565,7 +665,7 @@ $("#documentForm").addEventListener("submit",async event=>{
   event.preventDefault();if(!activeHouseholdId)return;
   const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
   const existing=saleDocuments.find(item=>String(item.id)===id);
-  const payload={name:data.get("name").trim(),space:data.get("space"),folder:data.get("folder"),owner:data.get("owner"),guarantorName:data.get("owner")==="guarantor"?data.get("guarantorName").trim():"",status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
+  const payload={name:data.get("name").trim(),space:data.get("space"),folder:data.get("folder"),owner:data.get("owner"),guarantorId:data.get("owner")==="guarantor"?data.get("guarantorId"):"",status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
   const file=form.elements.file.files[0];
   setSyncing(true);
   try{
@@ -583,6 +683,17 @@ $("#documentForm").addEventListener("submit",async event=>{
     $("#documentDialog").close();toast(id?"Document mis à jour !":"Document ajouté !");
   }catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
+$("#guarantorForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(!activeHouseholdId)return;
+  const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
+  const payload={firstName:data.get("firstName").trim(),lastName:data.get("lastName").trim(),relationship:data.get("relationship"),monthlyIncome:Number(data.get("monthlyIncome")||0),phone:data.get("phone").trim(),email:data.get("email").trim(),address:data.get("address").trim(),notes:data.get("notes").trim(),updatedAt:serverTimestamp()};
+  setSyncing(true);
+  try{
+    if(id)await updateDoc(doc(db,"households",activeHouseholdId,"guarantors",id),payload);
+    else await addDoc(collection(db,"households",activeHouseholdId,"guarantors"),{...payload,createdAt:serverTimestamp()});
+    $("#guarantorDialog").close();toast(id?"Garant mis à jour !":"Garant ajouté !");
+  }catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
 $("#boxForm").addEventListener("submit",async event=>{
   event.preventDefault();if(!activeHouseholdId)return;
   const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
@@ -596,6 +707,20 @@ $("#appointmentForm").addEventListener("submit",async event=>{
   setSyncing(true);try{if(id)await updateDoc(doc(db,"households",activeHouseholdId,"appointments",id),payload);else await addDoc(collection(db,"households",activeHouseholdId,"appointments"),{...payload,createdAt:serverTimestamp()});$("#appointmentDialog").close();toast(id?"Rendez-vous mis à jour !":"Rendez-vous ajouté !");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 document.addEventListener("click",async e=>{
+  const preview=e.target.closest(".preview-document");
+  if(preview){
+    const id=preview.closest("[data-document-id]").dataset.documentId,item=saleDocuments.find(document=>String(document.id)===id);
+    if(item)openDocumentPreview(item);return;
+  }
+  const guarantorEdit=e.target.closest(".edit-guarantor");
+  if(guarantorEdit){
+    const id=guarantorEdit.closest("[data-guarantor-id]").dataset.guarantorId,item=guarantors.find(guarantor=>guarantor.id===id);
+    if(item)openGuarantor(item);return;
+  }
+  const guarantorDocument=e.target.closest("[data-guarantor-document]");
+  if(guarantorDocument){
+    currentDocumentScope="guarantors";openDocument();$("#documentForm").elements.guarantorId.value=guarantorDocument.dataset.guarantorDocument;return;
+  }
   const agendaItem=e.target.closest("[data-agenda-kind]");
   if(agendaItem){
     const id=agendaItem.dataset.agendaId;
@@ -672,6 +797,12 @@ $("#deleteDocumentButton").addEventListener("click",async()=>{
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce document ?"))return;
   const item=saleDocuments.find(documentItem=>String(documentItem.id)===id);
   setSyncing(true);try{if(item?.storagePath)await deleteObject(storageRef(storage,item.storagePath)).catch(()=>{});await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+});
+$("#deleteGuarantorButton").addEventListener("click",async()=>{
+  const id=$("#guarantorForm").dataset.editing;if(!id||!activeHouseholdId)return;
+  if(saleDocuments.some(item=>item.guarantorId===id)){toast("Déplacez ou supprimez d’abord les documents de ce garant.");return;}
+  if(!window.confirm("Supprimer définitivement ce garant ?"))return;
+  setSyncing(true);try{await deleteDoc(doc(db,"households",activeHouseholdId,"guarantors",id));$("#guarantorDialog").close();toast("Garant supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 $("#deleteExpenseButton").addEventListener("click",async()=>{
   const id=$("#expenseForm").dataset.editing;

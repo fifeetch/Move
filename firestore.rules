@@ -45,9 +45,9 @@ service cloud.firestore {
 
       match /{collectionName}/{documentId} {
         allow read: if householdMember(householdId)
-          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'movingBoxes', 'appointments'];
+          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'guarantors', 'movingBoxes', 'appointments'];
         allow write: if householdMemberAfter(householdId)
-          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'movingBoxes', 'appointments'];
+          && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'guarantors', 'movingBoxes', 'appointments'];
       }
     }
   }

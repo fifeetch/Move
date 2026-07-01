@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
   <div class="app-shell">
@@ -140,7 +140,7 @@
 
         <section class="view" id="documentsView">
           <nav class="document-breadcrumb" id="documentBreadcrumb" aria-label="Fil d’Ariane des documents"></nav>
-          <div class="page-title documents-title"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h1>Mes documents</h1><p>Tous les papiers du projet, classés au même endroit.</p></div><button class="primary-button add-document-button">＋ Ajouter un document</button></div>
+          <div class="page-title documents-title"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h1>Mes documents</h1><p>Tous les papiers du projet, classés au même endroit.</p></div><div class="document-title-actions"><button class="secondary-button" id="printRentalButton">Imprimer le récapitulatif</button><button class="secondary-button" id="exportRentalButton">Télécharger le dossier ZIP</button><button class="primary-button add-document-button">＋ Ajouter un document</button></div></div>
           <div class="document-home-grid">
             <button class="document-home-card" data-document-scope="current">
               <span class="folder-visual current">▰</span>
@@ -156,8 +156,12 @@
               </div>
             </article>
           </div>
+          <section class="panel guarantor-panel">
+            <div class="panel-heading"><div><p class="eyebrow">DOSSIER LOCATIF</p><h2>Nos garants</h2></div><button class="text-button" id="addGuarantorButton">＋ Ajouter un garant</button></div>
+            <div id="guarantorList" class="guarantor-grid"></div>
+          </section>
           <section class="panel documents-library">
-            <div class="panel-heading document-library-heading"><div><p class="eyebrow">BIBLIOTHÈQUE</p><h2 id="documentLibraryTitle">Tous les documents</h2></div><div class="document-tools"><label class="document-search"><span>⌕</span><input id="documentSearch" type="search" placeholder="Rechercher un document…"></label><select id="documentStatusFilter" aria-label="Filtrer les documents"><option value="all">Tous les statuts</option><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêts</option></select></div></div>
+            <div class="panel-heading document-library-heading"><div><p class="eyebrow">BIBLIOTHÈQUE</p><h2 id="documentLibraryTitle">Tous les documents</h2></div><div class="document-tools"><label class="document-search"><span>⌕</span><input id="documentSearch" type="search" placeholder="Rechercher un document…"></label><select id="documentOwnerFilter" aria-label="Filtrer par personne"><option value="all">Toutes les personnes</option><option value="common">Commun</option><option value="marion">Marion</option><option value="philippe">Philippe</option><option value="guarantor">Garants</option></select><select id="documentStatusFilter" aria-label="Filtrer les documents"><option value="all">Tous les statuts</option><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêts</option></select></div></div>
             <div id="documentsLibraryList"></div>
           </section>
         </section>
@@ -275,13 +279,33 @@
       <label>Nom du document<input name="name" required placeholder="Ex. Titre de propriété"></label>
       <div class="form-row"><label>Espace<select name="space" id="documentSpace"><option value="current">Maison actuelle</option><option value="future">Futur logement</option></select></label><label>Dossier<select name="folder" id="documentFolder"><option value="sale">Vente & propriété</option><option value="diagnostics">Diagnostics</option><option value="notary">Notaire</option><option value="works">Travaux</option></select></label></div>
       <label>Personne concernée<select name="owner" id="documentOwner"><option value="common">Commun</option><option value="marion">Marion</option><option value="philippe">Philippe</option><option value="guarantor">Garant</option></select></label>
-      <label id="guarantorNameField" hidden>Nom du garant<input name="guarantorName" placeholder="Ex. Jean Dupont"></label>
+      <label id="guarantorNameField" hidden>Garant<select name="guarantorId" id="documentGuarantor"><option value="">Sélectionner un garant</option></select></label>
       <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Date de validité <small>(facultatif)</small><input name="deadline" type="date"></label></div>
       <label>Lien vers le document <small>(facultatif)</small><input name="url" type="url" placeholder="https://…"></label>
-      <label>Fichier <small>(PDF ou image, 10 Mo maximum)</small><input name="file" type="file" accept=".pdf,image/*"></label>
+      <label>Fichier <small>(PDF ou image, 10 Mo maximum)</small><span class="document-drop-zone" id="documentDropZone"><strong>Déposer le fichier ici</strong><small>ou cliquer pour parcourir</small><input name="file" type="file" accept=".pdf,image/*"></span></label>
       <label>Notes<textarea name="notes" rows="3" placeholder="Où le trouver, personne à relancer…"></textarea></label>
       <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteDocumentButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-document">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
     </form>
+  </dialog>
+
+  <dialog id="guarantorDialog">
+    <form id="guarantorForm">
+      <div class="dialog-head"><div><p class="eyebrow">DOSSIER LOCATIF</p><h2 id="guarantorDialogTitle">Ajouter un garant</h2></div><button type="button" class="icon-button close-guarantor">×</button></div>
+      <div class="form-row"><label>Prénom<input name="firstName" required></label><label>Nom<input name="lastName" required></label></div>
+      <div class="form-row"><label>Lien avec nous<select name="relationship"><option>Parent</option><option>Famille</option><option>Ami</option><option>Autre</option></select></label><label>Revenus mensuels (€)<input name="monthlyIncome" type="number" min="0"></label></div>
+      <div class="form-row"><label>Téléphone<input name="phone" type="tel"></label><label>E-mail<input name="email" type="email"></label></div>
+      <label>Adresse<textarea name="address" rows="2"></textarea></label>
+      <label>Notes<textarea name="notes" rows="2"></textarea></label>
+      <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteGuarantorButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-guarantor">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="documentPreviewDialog" class="preview-dialog">
+    <div class="preview-content">
+      <div class="dialog-head"><div><p class="eyebrow">APERÇU</p><h2 id="documentPreviewTitle">Document</h2></div><button type="button" class="icon-button close-preview">×</button></div>
+      <div id="documentPreviewBody"></div>
+      <div class="dialog-actions"><a class="secondary-button" id="documentDownloadLink" target="_blank" rel="noopener" download>Télécharger</a><button type="button" class="primary-button close-preview">Fermer</button></div>
+    </div>
   </dialog>
 
   <dialog id="boxDialog">
@@ -308,6 +332,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script type="module" src="app.js?v=13"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script type="module" src="app.js?v=14"></script>
 </body>
 </html>
