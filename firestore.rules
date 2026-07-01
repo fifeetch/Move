@@ -49,6 +49,16 @@ service cloud.firestore {
         allow write: if householdMemberAfter(householdId)
           && collectionName in ['tasks', 'expenses', 'contacts', 'documents', 'guarantors', 'movingBoxes', 'appointments'];
       }
+
+      match /documents/{documentId}/chunks/{chunkId} {
+        allow read: if householdMember(householdId);
+        allow create, update: if householdMemberAfter(householdId)
+          && request.resource.data.keys().hasOnly(['index', 'data'])
+          && request.resource.data.index is int
+          && request.resource.data.data is string
+          && request.resource.data.data.size() <= 750000;
+        allow delete: if householdMemberAfter(householdId);
+      }
     }
   }
 }

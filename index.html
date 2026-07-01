@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
   <div class="app-shell">
@@ -140,7 +140,7 @@
 
         <section class="view" id="documentsView">
           <nav class="document-breadcrumb" id="documentBreadcrumb" aria-label="Fil d’Ariane des documents"></nav>
-          <div class="page-title documents-title"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h1>Mes documents</h1><p>Tous les papiers du projet, classés au même endroit.</p></div><div class="document-title-actions"><button class="secondary-button" id="printRentalButton">Imprimer le récapitulatif</button><button class="secondary-button" id="exportRentalButton">Télécharger le dossier ZIP</button><button class="primary-button add-document-button">＋ Ajouter un document</button></div></div>
+          <div class="page-title documents-title"><div><p class="eyebrow">ESPACE DOCUMENTAIRE</p><h1>Mes documents</h1><p>Tous les papiers du projet, classés au même endroit.</p><span class="document-storage-usage" id="documentStorageUsage">0 Mo utilisés sur 1 Go Firestore</span></div><div class="document-title-actions"><button class="secondary-button" id="printRentalButton">Imprimer le récapitulatif</button><button class="secondary-button" id="exportRentalButton">Télécharger le dossier ZIP</button><button class="primary-button add-document-button">＋ Ajouter un document</button></div></div>
           <div class="document-home-grid">
             <button class="document-home-card" data-document-scope="current">
               <span class="folder-visual current">▰</span>
@@ -282,7 +282,7 @@
       <label id="guarantorNameField" hidden>Garant<select name="guarantorId" id="documentGuarantor"><option value="">Sélectionner un garant</option></select></label>
       <div class="form-row"><label>Statut<select name="status"><option value="todo">À obtenir</option><option value="doing">En cours</option><option value="done">Prêt</option></select></label><label>Date de validité <small>(facultatif)</small><input name="deadline" type="date"></label></div>
       <label>Lien vers le document <small>(facultatif)</small><input name="url" type="url" placeholder="https://…"></label>
-      <label>Fichier <small>(PDF ou image, 10 Mo maximum)</small><span class="document-drop-zone" id="documentDropZone"><strong>Déposer le fichier ici</strong><small>ou cliquer pour parcourir</small><input name="file" type="file" accept=".pdf,image/*"></span></label>
+      <label>Fichier <small>(PDF ou image, 10 Mo maximum · stockage Firestore sans frais)</small><span class="document-drop-zone" id="documentDropZone"><strong>Déposer le fichier ici</strong><small>ou cliquer pour parcourir</small><input name="file" type="file" accept=".pdf,image/*"></span></label>
       <label>Notes<textarea name="notes" rows="3" placeholder="Où le trouver, personne à relancer…"></textarea></label>
       <div class="dialog-actions split-actions"><button type="button" class="danger-button" id="deleteDocumentButton" hidden>Supprimer</button><span></span><button type="button" class="secondary-button close-document">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div>
     </form>
@@ -333,6 +333,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="app.js?v=14"></script>
+  <script type="module" src="app.js?v=15"></script>
 </body>
 </html>

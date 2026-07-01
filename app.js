@@ -6,15 +6,11 @@ import {
   getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot,
   addDoc, deleteDoc, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js?v=2";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
 
 const seedTasks = [
   ["Nettoyer les PVC de la façade","Façade","Commun","todo","",false,"normal"],
@@ -96,8 +92,36 @@ const setSyncing = value => document.body.classList.toggle("syncing", value);
 const formatMoney = n => new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n);
 const formatDate = d => d ? new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short"}).format(new Date(`${d}T12:00:00`)) : "Sans date";
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-const safeUrl = value => /^https?:\/\//i.test(value||"") ? esc(value) : "";
+const rawUrl = value => /^https?:\/\//i.test(value||"") ? String(value) : "";
+const safeUrl = value => esc(rawUrl(value));
 const cleanFileName = value => String(value||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"");
+const FIRESTORE_FILE_CHUNK_SIZE = 700000;
+const FIRESTORE_FREE_LIMIT = 1024*1024*1024;
+const readFileAsBase64 = file => new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");
+  reader.onerror=()=>reject(new Error("Lecture du fichier impossible."));
+  reader.readAsDataURL(file);
+});
+async function clearDocumentChunks(documentId){
+  if(!activeHouseholdId||!documentId)return;
+  const chunks=await getDocs(collection(db,"households",activeHouseholdId,"documents",documentId,"chunks"));
+  await Promise.all(chunks.docs.map(chunk=>deleteDoc(chunk.ref)));
+}
+async function saveDocumentChunks(documentId,file){
+  const base64=await readFileAsBase64(file);
+  const parts=[];for(let offset=0;offset<base64.length;offset+=FIRESTORE_FILE_CHUNK_SIZE)parts.push(base64.slice(offset,offset+FIRESTORE_FILE_CHUNK_SIZE));
+  await clearDocumentChunks(documentId);
+  for(let index=0;index<parts.length;index++)await setDoc(doc(db,"households",activeHouseholdId,"documents",documentId,"chunks",String(index).padStart(5,"0")),{index,data:parts[index]});
+  return {chunkCount:parts.length,encodedSize:base64.length};
+}
+async function loadDocumentData(item){
+  if(item.storageMode!=="firestoreChunks")return rawUrl(item.url);
+  const snapshot=await getDocs(collection(db,"households",activeHouseholdId,"documents",item.id,"chunks"));
+  const chunks=snapshot.docs.map(chunk=>chunk.data()).sort((a,b)=>a.index-b.index);
+  if(chunks.length!==(item.chunkCount||0))throw new Error("Le document est incomplet.");
+  return `data:${item.mimeType||"application/octet-stream"};base64,${chunks.map(chunk=>chunk.data).join("")}`;
+}
 const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadline}T23:59:59`) < new Date();
 
 function taskRow(t, full=false) {
@@ -213,6 +237,9 @@ function renderDocuments(){
   const ready=rental.filter(item=>item.status==="done").length;
   $("#rentalProgressLabel").textContent=`${ready} / ${rental.length} pièces prêtes`;
   $("#rentalProgress").style.width=`${rental.length?Math.round(ready/rental.length*100):0}%`;
+  const used=saleDocuments.reduce((total,item)=>total+Number(item.encodedSize||Math.ceil((item.size||0)*1.38)||0)+(Number(item.chunkCount||0)*900),0);
+  const usedLabel=used>=1024*1024?`${(used/1024/1024).toFixed(1)} Mo`:`${Math.ceil(used/1024)} Ko`;
+  $("#documentStorageUsage").textContent=`${usedLabel} utilisés sur 1 Go Firestore (${(used/FIRESTORE_FREE_LIMIT*100).toFixed(2)} %)`;
   $("#documentLibraryTitle").textContent=documentScopeLabels[currentDocumentScope];
   renderDocumentBreadcrumb();
   const query=$("#documentSearch").value.toLowerCase().trim(),status=$("#documentStatusFilter").value,owner=$("#documentOwnerFilter").value;
@@ -223,7 +250,7 @@ function renderDocuments(){
     const linkedGuarantor=guarantors.find(guarantor=>guarantor.id===item.guarantorId);
     const owner=item.owner==="marion"?"Marion":item.owner==="philippe"?"Philippe":item.owner==="guarantor"?guarantorName(linkedGuarantor):"Commun";
     const validity=item.deadline?` · Validité : ${formatDate(item.deadline)}`:"";
-    return `<div class="document-library-row" data-document-id="${item.id}"><span class="document-file-icon">▤</span><div><strong>${esc(item.name)}</strong><small>${esc(owner)}${validity}${item.fileName?` · ${esc(item.fileName)}`:""}</small></div><span class="document-path">▰ ${space} › ${folder}</span>${safeUrl(item.url)?`<button class="text-button preview-document">Aperçu</button>`:"<span></span>"}<b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`;
+    return `<div class="document-library-row" data-document-id="${item.id}"><span class="document-file-icon">▤</span><div><strong>${esc(item.name)}</strong><small>${esc(owner)}${validity}${item.fileName?` · ${esc(item.fileName)}`:""}</small></div><span class="document-path">▰ ${space} › ${folder}</span>${item.storageMode==="firestoreChunks"||safeUrl(item.url)?`<button class="text-button preview-document">Aperçu</button>`:"<span></span>"}<b class="status ${item.status}">${item.status==="done"?"Prêt":item.status==="doing"?"En cours":"À obtenir"}</b><button class="edit-task edit-document"><span>✎</span> Modifier</button></div>`;
   }).join(""):`<div class="empty-contact">Aucun document dans ce dossier.</div>`;
   renderGuarantors();
 }
@@ -375,8 +402,10 @@ function openGuarantor(item=null){
   $("#guarantorDialog").showModal();
 }
 
-function openDocumentPreview(item){
-  const url=safeUrl(item.url);if(!url)return;
+async function openDocumentPreview(item){
+  let url="";setSyncing(true);
+  try{url=await loadDocumentData(item);}catch(error){toast(error.message);setSyncing(false);return;}
+  setSyncing(false);if(!url)return;
   $("#documentPreviewTitle").textContent=item.name;
   $("#documentDownloadLink").href=url;
   $("#documentDownloadLink").download=item.fileName||cleanFileName(item.name);
@@ -404,7 +433,7 @@ function printRentalSummary(){
 
 async function exportRentalZip(){
   if(!window.JSZip){toast("Le module d’export n’est pas disponible.");return;}
-  const rental=saleDocuments.filter(item=>item.space==="future"&&["ourFile","guarantors","lease"].includes(item.folder)&&safeUrl(item.url));
+  const rental=saleDocuments.filter(item=>item.space==="future"&&["ourFile","guarantors","lease"].includes(item.folder)&&(item.storageMode==="firestoreChunks"||safeUrl(item.url)));
   setSyncing(true);
   try{
     const zip=new window.JSZip();zip.file("recapitulatif-dossier-locatif.html",rentalSummaryHtml());
@@ -412,7 +441,7 @@ async function exportRentalZip(){
     let skipped=0;
     for(const item of rental){
       try{
-        const response=await fetch(item.url);if(!response.ok)throw new Error("Téléchargement impossible");
+        const source=await loadDocumentData(item),response=await fetch(source);if(!response.ok)throw new Error("Téléchargement impossible");
         const extension=(item.fileName||item.url).match(/\.[a-z0-9]{2,5}(?:\?|$)/i)?.[0]?.split("?")[0]||"";
         folders[item.folder].file(`${cleanFileName(item.name)}${extension}`,await response.blob());
       }catch{skipped++;}
@@ -665,21 +694,22 @@ $("#documentForm").addEventListener("submit",async event=>{
   event.preventDefault();if(!activeHouseholdId)return;
   const form=event.currentTarget,data=new FormData(form),id=form.dataset.editing;
   const existing=saleDocuments.find(item=>String(item.id)===id);
-  const payload={name:data.get("name").trim(),space:data.get("space"),folder:data.get("folder"),owner:data.get("owner"),guarantorId:data.get("owner")==="guarantor"?data.get("guarantorId"):"",status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),storagePath:existing?.storagePath||"",fileName:existing?.fileName||"",updatedAt:serverTimestamp()};
+  const payload={name:data.get("name").trim(),space:data.get("space"),folder:data.get("folder"),owner:data.get("owner"),guarantorId:data.get("owner")==="guarantor"?data.get("guarantorId"):"",status:data.get("status"),deadline:data.get("deadline"),url:data.get("url").trim(),notes:data.get("notes").trim(),fileName:existing?.fileName||"",mimeType:existing?.mimeType||"",size:existing?.size||0,storageMode:existing?.storageMode||"",chunkCount:existing?.chunkCount||0,encodedSize:existing?.encodedSize||0,updatedAt:serverTimestamp()};
   const file=form.elements.file.files[0];
   setSyncing(true);
   try{
     if(file){
       if(file.size>10*1024*1024)throw new Error("Le fichier dépasse 10 Mo.");
       if(file.type!=="application/pdf"&&!file.type.startsWith("image/"))throw new Error("Seuls les PDF et les images sont acceptés.");
-      if(existing?.storagePath)await deleteObject(storageRef(storage,existing.storagePath)).catch(()=>{});
-      const cleanName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-");
-      payload.storagePath=`households/${activeHouseholdId}/documents/${Date.now()}-${cleanName}`;
-      const uploaded=await uploadBytes(storageRef(storage,payload.storagePath),file,{contentType:file.type});
-      payload.url=await getDownloadURL(uploaded.ref);payload.fileName=file.name;
+      Object.assign(payload,{url:"",fileName:file.name,mimeType:file.type,size:file.size,storageMode:"uploading",chunkCount:0,encodedSize:0});
     }
+    let documentId=id;
     if(id)await updateDoc(doc(db,"households",activeHouseholdId,"documents",id),payload);
-    else await addDoc(collection(db,"households",activeHouseholdId,"documents"),{...payload,createdAt:serverTimestamp()});
+    else{const created=await addDoc(collection(db,"households",activeHouseholdId,"documents"),{...payload,createdAt:serverTimestamp()});documentId=created.id;}
+    if(file){
+      const chunkInfo=await saveDocumentChunks(documentId,file);
+      await updateDoc(doc(db,"households",activeHouseholdId,"documents",documentId),{storageMode:"firestoreChunks",...chunkInfo,updatedAt:serverTimestamp()});
+    }
     $("#documentDialog").close();toast(id?"Document mis à jour !":"Document ajouté !");
   }catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
@@ -795,8 +825,7 @@ $("#deleteContactButton").addEventListener("click",async()=>{
 $("#deleteDocumentButton").addEventListener("click",async()=>{
   const id=$("#documentForm").dataset.editing;
   if(!id||!activeHouseholdId||!window.confirm("Supprimer définitivement ce document ?"))return;
-  const item=saleDocuments.find(documentItem=>String(documentItem.id)===id);
-  setSyncing(true);try{if(item?.storagePath)await deleteObject(storageRef(storage,item.storagePath)).catch(()=>{});await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
+  setSyncing(true);try{await clearDocumentChunks(id);await deleteDoc(doc(db,"households",activeHouseholdId,"documents",id));$("#documentDialog").close();toast("Document supprimé.");}catch(error){setSyncing(false);toast(firebaseMessage(error));}
 });
 $("#deleteGuarantorButton").addEventListener("click",async()=>{
   const id=$("#guarantorForm").dataset.editing;if(!id||!activeHouseholdId)return;
