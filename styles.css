@@ -164,10 +164,14 @@ body[data-display="phone"] .workload-cards,body[data-display="phone"] .project-p
 }
 body[data-display="phone"] .sidebar{height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 body[data-display="phone"] .sidebar-bottom{flex:0 0 auto;margin-top:auto;padding-bottom:8px}
-.mobile-settings-nav{display:none}
+.mobile-settings-nav,.mobile-account-nav,.close-mobile-menu{display:none}
 @media(max-width:760px){
-  .mobile-settings-nav{display:flex}
+  .mobile-settings-nav,.mobile-account-nav{display:flex}
+  .close-mobile-menu{display:grid;margin-left:auto;width:38px;height:38px;place-items:center;border:0;border-radius:50%;color:#fff;background:rgba(255,255,255,.1);font-size:25px}
+  .sidebar-bottom{display:none}
   #settingsButton{display:none}
 }
-body[data-display="phone"] .mobile-settings-nav{display:flex}
+body[data-display="phone"] .mobile-settings-nav,body[data-display="phone"] .mobile-account-nav{display:flex}
+body[data-display="phone"] .close-mobile-menu{display:grid;margin-left:auto;width:38px;height:38px;place-items:center;border:0;border-radius:50%;color:#fff;background:rgba(255,255,255,.1);font-size:25px}
+body[data-display="phone"] .sidebar-bottom{display:none}
 body[data-display="phone"] #settingsButton{display:none}

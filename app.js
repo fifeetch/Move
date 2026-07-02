@@ -644,6 +644,8 @@ $$(".close-document").forEach(button=>button.addEventListener("click",()=>$("#do
 $$(".close-box").forEach(button=>button.addEventListener("click",()=>$("#boxDialog").close()));
 $$(".close-appointment").forEach(button=>button.addEventListener("click",()=>$("#appointmentDialog").close()));
 $("#menuButton").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
+$("#closeMobileMenu").addEventListener("click",()=>$("#sidebar").classList.remove("open"));
+$("#mobileAccountButton").addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#accountDialog").showModal();});
 $("#documentSpace").addEventListener("change",event=>updateDocumentFolders(event.target.value));
 $("#documentOwner").addEventListener("change",updateGuarantorField);
 $("#documentSearch").addEventListener("input",renderDocuments);

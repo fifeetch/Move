@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
   <div class="app-shell">
@@ -19,6 +19,7 @@
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">⌁</div>
         <div><strong>Cap Montagne</strong><span>Notre nouveau départ</span></div>
+        <button class="close-mobile-menu" id="closeMobileMenu" aria-label="Fermer le menu">×</button>
       </div>
       <nav aria-label="Navigation principale">
         <button class="nav-item active" data-view="dashboard"><span>◫</span> Vue d’ensemble</button>
@@ -29,6 +30,7 @@
         <button class="nav-item" data-view="move"><span>▣</span> Déménagement</button>
         <button class="nav-item" data-view="budget"><span>€</span> Budget & achats</button>
         <button class="nav-item mobile-settings-nav" data-view="settings"><span>⚙</span> Paramètres</button>
+        <button class="nav-item mobile-account-nav" id="mobileAccountButton"><span>●</span> Notre foyer</button>
       </nav>
       <div class="sidebar-bottom">
         <button class="couple-card user-menu" id="userMenuButton">
@@ -315,6 +317,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>
