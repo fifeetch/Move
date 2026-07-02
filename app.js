@@ -73,9 +73,16 @@ let currentBoxStatus = "all";
 let calendarCursor = new Date();
 let agendaViewMode = "month";
 let currentDocumentScope = "all";
-let dashboardMode = localStorage.getItem("capMontagneDashboardMode")||"daily";
-if(!["daily","visual"].includes(dashboardMode)) dashboardMode="daily";
+let dashboardMode = localStorage.getItem("capMontagneDashboardMode")||"visual";
+if(!["daily","visual"].includes(dashboardMode)) dashboardMode="visual";
+if(localStorage.getItem("capMontagneDashboardDefaultVersion")!=="visual-v1"){
+  dashboardMode="visual";
+  localStorage.setItem("capMontagneDashboardMode","visual");
+  localStorage.setItem("capMontagneDashboardDefaultVersion","visual-v1");
+}
 let displayMode = localStorage.getItem("capMontagneDisplayMode")||"auto";
+let fontSize = localStorage.getItem("capMontagneFontSize")||"normal";
+let reduceMotion = localStorage.getItem("capMontagneReduceMotion")==="true";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -129,6 +136,14 @@ const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadli
 function applyDisplayMode(){
   document.body.dataset.display=displayMode;
   $("#displayModeSelect").value=displayMode;
+  $("#settingsDisplayMode").value=displayMode;
+}
+function applyPreferences(){
+  document.body.dataset.fontSize=fontSize;
+  document.body.classList.toggle("reduce-motion",reduceMotion);
+  $("#fontSizeSelect").value=fontSize;
+  $("#reduceMotionToggle").checked=reduceMotion;
+  $("#defaultDashboardSelect").value=dashboardMode;
 }
 
 function taskRow(t, full=false) {
@@ -657,7 +672,6 @@ $("#documentBreadcrumb").addEventListener("click",event=>{
   const button=event.target.closest("[data-document-breadcrumb]");
   if(button)setDocumentScope(button.dataset.documentBreadcrumb);
 });
-$("#settingsButton").addEventListener("click",()=>toast("Les paramètres arriveront dans la prochaine version."));
 $("#taskForm").addEventListener("submit",async e=>{
   e.preventDefault(); const data=new FormData(e.currentTarget);
   if(!activeHouseholdId) return;
@@ -880,6 +894,16 @@ $("#taskSearch").addEventListener("input",renderTasks);
 $("#taskCategoryFilter").addEventListener("change",renderTasks);
 $("#taskPeriodFilter").addEventListener("change",renderTasks);
 $("#displayModeSelect").addEventListener("change",event=>{displayMode=event.target.value;localStorage.setItem("capMontagneDisplayMode",displayMode);applyDisplayMode();});
+$("#settingsDisplayMode").addEventListener("change",event=>{displayMode=event.target.value;localStorage.setItem("capMontagneDisplayMode",displayMode);applyDisplayMode();});
+$("#defaultDashboardSelect").addEventListener("change",event=>{dashboardMode=event.target.value;localStorage.setItem("capMontagneDashboardMode",dashboardMode);renderDashboard();toast("Vue d’accueil enregistrée.");});
+$("#fontSizeSelect").addEventListener("change",event=>{fontSize=event.target.value;localStorage.setItem("capMontagneFontSize",fontSize);applyPreferences();});
+$("#reduceMotionToggle").addEventListener("change",event=>{reduceMotion=event.target.checked;localStorage.setItem("capMontagneReduceMotion",String(reduceMotion));applyPreferences();});
+$("#openAccountSettings").addEventListener("click",()=>$("#accountDialog").showModal());
+$("#resetPreferences").addEventListener("click",()=>{
+  ["capMontagneDashboardMode","capMontagneDisplayMode","capMontagneFontSize","capMontagneReduceMotion"].forEach(key=>localStorage.removeItem(key));
+  dashboardMode="visual";displayMode="auto";fontSize="normal";reduceMotion=false;
+  applyDisplayMode();applyPreferences();renderDashboard();toast("Préférences réinitialisées.");
+});
 $("#globalSearch").addEventListener("input",()=>{if($("#globalSearch").value){$("#taskSearch").value=$("#globalSearch").value;goTo("tasks");renderTasks();}});
 $("#dashboardSwitcher").addEventListener("click",event=>{const button=event.target.closest("[data-dashboard-mode]");if(!button)return;dashboardMode=button.dataset.dashboardMode;localStorage.setItem("capMontagneDashboardMode",dashboardMode);renderDashboard();});
 $("#toggleUndatedTasks").addEventListener("click",()=>{$("#undatedTaskList").hidden=!$("#undatedTaskList").hidden;$("#toggleUndatedTasks").classList.toggle("open",!$("#undatedTaskList").hidden);});
@@ -949,3 +973,4 @@ window.addEventListener("beforeinstallprompt",event=>{
   event.preventDefault();deferredInstallPrompt=event;$("#installAppButton").hidden=false;
 });
 applyDisplayMode();
+applyPreferences();

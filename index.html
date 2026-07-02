@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
   <div class="app-shell">
@@ -34,7 +34,7 @@
           <div class="avatars"><span class="avatar marion">M</span><span class="avatar philippe">P</span></div>
           <div><strong id="householdLabel">Notre foyer</strong><span id="currentUserLabel">Connexion…</span></div>
         </button>
-        <button class="nav-item" id="settingsButton"><span>⚙</span> Paramètres</button>
+        <button class="nav-item" id="settingsButton" data-view="settings"><span>⚙</span> Paramètres</button>
       </div>
     </aside>
 
@@ -144,6 +144,37 @@
           <div class="budget-layout">
             <section class="panel"><div class="panel-heading"><div><p class="eyebrow">SUIVI</p><h2>Dépenses et achats</h2></div><div class="filter-group" id="budgetFilters"><button class="filter active" data-budget-type="all">Tout</button><button class="filter" data-budget-type="expense">Dépenses</button><button class="filter" data-budget-type="purchase">Achats</button></div></div><div id="expenseList" class="expense-list"></div></section>
             <section class="panel category-panel"><div class="panel-heading"><div><p class="eyebrow">RÉPARTITION</p><h2>Par catégorie</h2></div></div><div id="categoryBreakdown" class="category-breakdown"></div></section>
+          </div>
+        </section>
+
+        <section class="view" id="settingsView">
+          <div class="page-title"><div><p class="eyebrow">PERSONNALISATION</p><h1>Paramètres</h1><p>Adaptez Cap Montagne à votre écran et à votre façon de travailler.</p></div></div>
+          <div class="settings-grid">
+            <section class="panel settings-card">
+              <div class="settings-icon">▦</div>
+              <div><h2>Vue d’accueil</h2><p>Choisissez le tableau de bord affiché à l’ouverture.</p></div>
+              <label>Vue par défaut<select id="defaultDashboardSelect"><option value="visual">Vue visuelle</option><option value="daily">Vue quotidienne</option></select></label>
+            </section>
+            <section class="panel settings-card">
+              <div class="settings-icon">▣</div>
+              <div><h2>Format de l’écran</h2><p>L’affichage automatique est conseillé, mais vous pouvez imposer un format.</p></div>
+              <label>Mode d’affichage<select id="settingsDisplayMode"><option value="auto">Automatique</option><option value="desktop">Ordinateur</option><option value="laptop">Portable / MacBook</option><option value="phone">Téléphone</option></select></label>
+            </section>
+            <section class="panel settings-card">
+              <div class="settings-icon">Aa</div>
+              <div><h2>Taille des textes</h2><p>Agrandissez les textes sans modifier les données de l’application.</p></div>
+              <label>Confort de lecture<select id="fontSizeSelect"><option value="compact">Compact</option><option value="normal">Normal</option><option value="large">Grand</option></select></label>
+            </section>
+            <section class="panel settings-card">
+              <div class="settings-icon">◎</div>
+              <div><h2>Confort visuel</h2><p>Limitez les mouvements pour une navigation plus calme.</p></div>
+              <label class="setting-toggle"><span>Réduire les animations</span><input id="reduceMotionToggle" type="checkbox"></label>
+            </section>
+            <section class="panel settings-card settings-wide">
+              <div class="settings-icon">⌂</div>
+              <div><h2>Compte et foyer</h2><p>Consultez votre foyer partagé ou réinitialisez uniquement les préférences de cet appareil.</p></div>
+              <div class="settings-actions"><button class="secondary-button" id="openAccountSettings">Gérer le foyer</button><button class="text-button danger-text" id="resetPreferences">Réinitialiser mes préférences</button></div>
+            </section>
           </div>
         </section>
       </div>
@@ -283,6 +314,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="app.js?v=18"></script>
+  <script type="module" src="app.js?v=19"></script>
 </body>
 </html>
