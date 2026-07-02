@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
   <div class="app-shell">
@@ -51,7 +51,7 @@
 
       <div class="content">
         <section class="view active" id="dashboardView">
-          <div class="dashboard-heading"><div><p class="eyebrow">TABLEAU DE BORD</p><h1>Vue d’ensemble</h1><p>Les informations utiles, sans le bruit.</p></div><div class="dashboard-switcher" id="dashboardSwitcher"><button class="active" data-dashboard-mode="daily">Vue quotidienne</button><button data-dashboard-mode="project">Vue projet</button><button data-dashboard-mode="visual">Vue visuelle</button></div></div>
+          <div class="dashboard-heading"><div><p class="eyebrow">TABLEAU DE BORD</p><h1>Vue d’ensemble</h1><p>Les informations utiles, sans le bruit.</p></div><div class="dashboard-switcher" id="dashboardSwitcher"><button class="active" data-dashboard-mode="daily">Vue quotidienne</button><button data-dashboard-mode="visual">Vue visuelle</button></div></div>
           <div id="dashboardKpis" class="stats-grid dashboard-kpis"></div>
           <section class="panel next-actions-panel"><div class="panel-heading"><div><p class="eyebrow">À NE PAS MANQUER</p><h2>Prochaines actions</h2></div><button class="text-button" data-go="tasks">Voir toutes les tâches →</button></div><div id="nextActions" class="next-actions-grid"></div></section>
           <section class="panel undated-panel"><button id="toggleUndatedTasks" class="undated-toggle"><span>▦</span><strong id="undatedTaskCount">Tâches à planifier · 0</strong><small>Ces tâches n’ont pas encore de date</small><b>⌄</b></button><div id="undatedTaskList" class="undated-task-list" hidden></div></section>
@@ -283,6 +283,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>

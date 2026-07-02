@@ -74,6 +74,7 @@ let calendarCursor = new Date();
 let agendaViewMode = "month";
 let currentDocumentScope = "all";
 let dashboardMode = localStorage.getItem("capMontagneDashboardMode")||"daily";
+if(!["daily","visual"].includes(dashboardMode)) dashboardMode="daily";
 let displayMode = localStorage.getItem("capMontagneDisplayMode")||"auto";
 let activeHouseholdId = null;
 let activeUser = null;
@@ -155,11 +156,6 @@ function renderDashboard() {
     ["En retard",overdue.length,"à traiter","!"],
     ["Cette semaine",week.length,"dans les 7 jours","▦"],
     ["Prochain rendez-vous",appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0]?.date?formatDate(appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0].date):"—","agenda","◷"]
-  ]:dashboardMode==="project"?[
-    ["Progression",`${Math.round(done/Math.max(1,tasks.length)*100)} %`,`${done}/${tasks.length} tâches`,"↗"],
-    ["Budget",formatMoney(spent),`sur ${formatMoney(planned)}`,"€"],
-    ["Documents",`${readyDocs}/${saleDocuments.length}`,"pièces prêtes","▤"],
-    ["Cartons",`${readyBoxes}/${movingBoxes.length}`,"prêts ou déplacés","▣"]
   ]:[];
   $("#dashboardKpis").hidden=dashboardMode==="visual";
   $("#dashboardKpis").innerHTML=kpis.map(([label,value,caption,icon])=>`<article class="stat-card"><div class="stat-head"><span>${label}</span><i class="stat-icon green">${icon}</i></div><div class="stat-value"><strong>${value}</strong><small>${caption}</small></div></article>`).join("");
