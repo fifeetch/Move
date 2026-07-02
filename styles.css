@@ -156,3 +156,11 @@ body[data-display="phone"] .settings-actions{align-items:flex-start;flex-directi
 body[data-display="phone"] .panel{padding:13px}
 body[data-display="phone"] .visual-week{grid-template-columns:repeat(7,145px);overflow-x:auto}
 body[data-display="phone"] .workload-cards,body[data-display="phone"] .project-progress-grid{grid-template-columns:1fr}
+
+/* Le bas du menu mobile reste au-dessus des barres système du téléphone. */
+@media(max-width:760px){
+  .sidebar{height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+  .sidebar-bottom{flex:0 0 auto;margin-top:auto;padding-bottom:8px}
+}
+body[data-display="phone"] .sidebar{height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+body[data-display="phone"] .sidebar-bottom{flex:0 0 auto;margin-top:auto;padding-bottom:8px}
