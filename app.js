@@ -74,6 +74,7 @@ let calendarCursor = new Date();
 let agendaViewMode = "month";
 let currentDocumentScope = "all";
 let dashboardMode = localStorage.getItem("capMontagneDashboardMode")||"daily";
+let displayMode = localStorage.getItem("capMontagneDisplayMode")||"auto";
 let activeHouseholdId = null;
 let activeUser = null;
 let authMode = "login";
@@ -124,6 +125,10 @@ async function loadDocumentData(item){
   return `data:${item.mimeType||"application/octet-stream"};base64,${chunks.map(chunk=>chunk.data).join("")}`;
 }
 const isOverdue = task => !task.done && task.deadline && new Date(`${task.deadline}T23:59:59`) < new Date();
+function applyDisplayMode(){
+  document.body.dataset.display=displayMode;
+  $("#displayModeSelect").value=displayMode;
+}
 
 function taskRow(t, full=false) {
   const overdue=isOverdue(t);
@@ -150,26 +155,36 @@ function renderDashboard() {
     ["En retard",overdue.length,"à traiter","!"],
     ["Cette semaine",week.length,"dans les 7 jours","▦"],
     ["Prochain rendez-vous",appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0]?.date?formatDate(appointments.filter(item=>item.date>=todayKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0].date):"—","agenda","◷"]
-  ]:[
+  ]:dashboardMode==="project"?[
     ["Progression",`${Math.round(done/Math.max(1,tasks.length)*100)} %`,`${done}/${tasks.length} tâches`,"↗"],
     ["Budget",formatMoney(spent),`sur ${formatMoney(planned)}`,"€"],
     ["Documents",`${readyDocs}/${saleDocuments.length}`,"pièces prêtes","▤"],
     ["Cartons",`${readyBoxes}/${movingBoxes.length}`,"prêts ou déplacés","▣"]
-  ];
+  ]:[];
+  $("#dashboardKpis").hidden=dashboardMode==="visual";
   $("#dashboardKpis").innerHTML=kpis.map(([label,value,caption,icon])=>`<article class="stat-card"><div class="stat-head"><span>${label}</span><i class="stat-icon green">${icon}</i></div><div class="stat-value"><strong>${value}</strong><small>${caption}</small></div></article>`).join("");
   const actionGroup=(title,list,css="")=>`<section class="action-group ${css}"><h3>${title}<span>${list.length}</span></h3>${list.slice(0,6).map(item=>`<button class="dashboard-action" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}"><time>${formatDate(item.date)}</time><span><strong>${esc(item.title)}</strong><small>${esc(item.assignee||item.type||"Commun")}</small></span></button>`).join("")||'<p>Rien à signaler</p>'}</section>`;
-  $("#nextActions").innerHTML=actionGroup("En retard",overdue,"overdue")+actionGroup("Aujourd’hui",todayEvents)+actionGroup("Cette semaine",week);
+  if(dashboardMode==="visual"){
+    const days=Array.from({length:7},(_,index)=>{const date=new Date(today);date.setDate(today.getDate()+index);const key=date.toLocaleDateString("en-CA"),items=datedEvents.filter(item=>item.date===key);return `<article class="visual-day ${index===0?"today":""}"><header><strong>${date.getDate()}</strong><span>${new Intl.DateTimeFormat("fr-FR",{weekday:"short"}).format(date)}</span></header><b>${items.length} action${items.length>1?"s":""}</b>${items.slice(0,3).map(item=>`<button data-agenda-kind="${item.kind}" data-agenda-id="${item.id}">${esc(item.title)}</button>`).join("")||"<small>Rien de prévu</small>"}</article>`;});
+    $("#nextActions").className="visual-week";
+    $("#nextActions").innerHTML=days.join("");
+  }else{
+    $("#nextActions").className="next-actions-grid";
+    $("#nextActions").innerHTML=actionGroup("En retard",overdue,"overdue")+actionGroup("Aujourd’hui",todayEvents)+actionGroup("Cette semaine",week);
+  }
   const undated=open.filter(task=>!task.deadline).sort((a,b)=>(a.priority==="high"?-1:1));
   $("#undatedTaskCount").textContent=`Tâches à planifier · ${undated.length}`;
   $("#undatedTaskList").innerHTML=undated.map(task=>taskRow(task)).join("")||'<p class="empty-contact">Toutes les tâches sont planifiées.</p>';
   const people=["Marion","Philippe","Commun"];
+  $("#workloadList").className=dashboardMode==="visual"?"workload-cards":"workload-list";
   $("#workloadList").innerHTML=people.map(person=>{
     const remaining=open.filter(task=>task.assignee===person),late=remaining.filter(isOverdue).length,width=Math.round(remaining.length/Math.max(1,...people.map(name=>open.filter(task=>task.assignee===name).length))*100);
-    return `<article class="workload-row"><span class="workload-avatar ${person}">${person==="Commun"?"M+P":person[0]}</span><strong>${person}</strong><i class="progress"><span style="width:${width}%"></span></i><span>${remaining.length} restante${remaining.length>1?"s":""}</span><b>${late} en retard</b></article>`;
+    return dashboardMode==="visual"?`<article class="workload-card"><div class="workload-ring" style="--load:${width*3.6}deg"><strong>${width}%</strong></div><div><strong>${person}</strong><span>${remaining.length} tâches restantes</span><b>${late} en retard</b></div></article>`:`<article class="workload-row"><span class="workload-avatar ${person}">${person==="Commun"?"M+P":person[0]}</span><strong>${person}</strong><i class="progress"><span style="width:${width}%"></span></i><span>${remaining.length} restante${remaining.length>1?"s":""}</span><b>${late} en retard</b></article>`;
   }).join("");
   const domains=[["Vente",task=>task.category==="Vente de la maison"],["Maison",task=>["Façade","Salon","Chambre","Véranda","Cave","Extérieur","Tri"].some(value=>task.category.includes(value))],["Logement",task=>task.category==="Nouveau logement"],["Déménagement",task=>["Déménagement","Administratif"].includes(task.category)],["Documents",()=>false]];
   $("#projectProgressList").innerHTML=domains.map(([label,match])=>{const list=label==="Documents"?saleDocuments:tasks.filter(match),complete=label==="Documents"?list.filter(item=>item.status==="done").length:list.filter(item=>item.done).length,percent=Math.round(complete/Math.max(1,list.length)*100);return `<article><header><strong>${label}</strong><span>${percent}%</span></header><div class="progress"><span style="width:${percent}%"></span></div><small>${complete}/${list.length} terminé(s)</small></article>`;}).join("");
-  $("#projectProgressPanel").hidden=dashboardMode!=="project";
+  $("#projectProgressPanel").hidden=dashboardMode==="daily";
+  $("#dashboardView").classList.toggle("visual-mode",dashboardMode==="visual");
 }
 
 function renderTasks() {
@@ -868,6 +883,7 @@ $("#personFilter").addEventListener("change",renderTasks);
 $("#taskSearch").addEventListener("input",renderTasks);
 $("#taskCategoryFilter").addEventListener("change",renderTasks);
 $("#taskPeriodFilter").addEventListener("change",renderTasks);
+$("#displayModeSelect").addEventListener("change",event=>{displayMode=event.target.value;localStorage.setItem("capMontagneDisplayMode",displayMode);applyDisplayMode();});
 $("#globalSearch").addEventListener("input",()=>{if($("#globalSearch").value){$("#taskSearch").value=$("#globalSearch").value;goTo("tasks");renderTasks();}});
 $("#dashboardSwitcher").addEventListener("click",event=>{const button=event.target.closest("[data-dashboard-mode]");if(!button)return;dashboardMode=button.dataset.dashboardMode;localStorage.setItem("capMontagneDashboardMode",dashboardMode);renderDashboard();});
 $("#toggleUndatedTasks").addEventListener("click",()=>{$("#undatedTaskList").hidden=!$("#undatedTaskList").hidden;$("#toggleUndatedTasks").classList.toggle("open",!$("#undatedTaskList").hidden);});
@@ -936,3 +952,4 @@ if("serviceWorker" in navigator){
 window.addEventListener("beforeinstallprompt",event=>{
   event.preventDefault();deferredInstallPrompt=event;$("#installAppButton").hidden=false;
 });
+applyDisplayMode();
