@@ -1,5 +1,5 @@
-const CACHE_NAME = "cap-montagne-v19";
-const APP_SHELL = ["./", "./index.html", "./styles.css?v=19", "./app.js?v=19", "./firebase-config.js?v=2", "./manifest.json", "./icon.svg"];
+const CACHE_NAME = "cap-montagne-v20";
+const APP_SHELL = ["./", "./index.html", "./styles.css?v=20", "./app.js?v=20", "./firebase-config.js?v=2", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));

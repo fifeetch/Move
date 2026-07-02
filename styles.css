@@ -110,3 +110,49 @@ body[data-display="laptop"] .app-shell{grid-template-columns:215px 1fr}body[data
 body[data-display="phone"] .app-shell{display:block}body[data-display="phone"] .sidebar{position:fixed;left:-270px;width:250px;transition:.25s}body[data-display="phone"] .sidebar.open{left:0;box-shadow:20px 0 60px rgba(0,0,0,.25)}body[data-display="phone"] .menu-button{display:block}body[data-display="phone"] .topbar{height:62px;padding:0 12px}body[data-display="phone"] .today span,body[data-display="phone"] .search,body[data-display="phone"] .display-mode-select{display:none}body[data-display="phone"] .content{padding:17px 12px 35px}body[data-display="phone"] .dashboard-heading{align-items:stretch;flex-direction:column}body[data-display="phone"] .dashboard-heading h1,body[data-display="phone"] .page-title h1{font-size:25px}body[data-display="phone"] .stats-grid{grid-template-columns:1fr 1fr}body[data-display="phone"] .dashboard-switcher{overflow:auto}body[data-display="phone"] .dashboard-switcher button{min-width:105px}body[data-display="phone"] .visual-week{grid-template-columns:repeat(7,135px);overflow:auto}body[data-display="phone"] .workload-cards,body[data-display="phone"] .project-progress-grid{grid-template-columns:1fr}body[data-display="phone"] .task-kanban{grid-template-columns:repeat(4,255px);overflow:auto}
 body[data-display="phone"] .display-mode-select{display:block!important;max-width:115px;padding:7px}body[data-display="phone"] .top-actions{gap:6px}
 .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.settings-card{display:grid;grid-template-columns:48px 1fr;gap:14px;align-items:start}.settings-card>label,.settings-card>.settings-actions{grid-column:2}.settings-card h2{margin:2px 0 5px;font-size:16px}.settings-card p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}.settings-card label{display:grid;gap:7px;color:var(--muted);font-size:10px;font-weight:700}.settings-card select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}.settings-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:var(--sage-light);color:var(--forest-2);font:800 14px Manrope}.settings-wide{grid-column:1/-1}.settings-actions{display:flex;align-items:center;gap:15px}.setting-toggle{display:flex!important;align-items:center;justify-content:space-between;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}.setting-toggle input{width:18px;height:18px;accent-color:var(--forest-2)}.danger-text{color:var(--rust)}body[data-font-size="compact"]{font-size:13px}body[data-font-size="large"]{font-size:17px}body[data-font-size="large"] .nav-item,body[data-font-size="large"] button,body[data-font-size="large"] input,body[data-font-size="large"] select{font-size:1em}.reduce-motion *{scroll-behavior:auto!important;animation:none!important;transition:none!important}@media(max-width:760px){.settings-grid{grid-template-columns:1fr}.settings-wide{grid-column:auto}.settings-card{grid-template-columns:42px 1fr}.settings-actions{align-items:flex-start;flex-direction:column}}
+
+/* Mise à l'échelle générale : tous les textes et composants suivent le réglage. */
+body[data-font-size="compact"]{font-size:initial;zoom:.88}
+body[data-font-size="normal"]{zoom:1}
+body[data-font-size="large"]{font-size:initial;zoom:1.16}
+
+/* Les trois formats ont désormais des silhouettes réellement différentes. */
+body[data-display="desktop"] .app-shell{grid-template-columns:280px minmax(0,1fr)}
+body[data-display="desktop"] .content{max-width:1720px;padding:42px 52px 72px}
+body[data-display="desktop"] .topbar{height:78px;padding:0 52px}
+body[data-display="desktop"] .panel{padding:22px}
+
+body[data-display="laptop"] .app-shell{grid-template-columns:195px minmax(0,1fr)}
+body[data-display="laptop"] .content{max-width:1160px;padding:20px 22px 36px}
+body[data-display="laptop"] .topbar{height:60px;padding:0 22px}
+body[data-display="laptop"] .sidebar{padding:17px 10px 13px}
+body[data-display="laptop"] .nav-item{padding:8px;font-size:10px}
+body[data-display="laptop"] .brand strong{font-size:14px}
+body[data-display="laptop"] .panel{padding:14px}
+body[data-display="laptop"] .visual-day{min-height:170px;padding:9px 7px}
+
+body[data-display="phone"]{background:#26332f}
+body[data-display="phone"] .app-shell{display:block;width:min(100%,430px);min-height:100vh;margin:0 auto;background:var(--cream);box-shadow:0 0 45px rgba(0,0,0,.28)}
+body[data-display="phone"] main{min-width:0}
+body[data-display="phone"] .sidebar{left:-280px}
+body[data-display="phone"] .sidebar.open{left:max(0px,calc(50% - 215px))}
+body[data-display="phone"] .topbar{height:58px;padding:0 9px}
+body[data-display="phone"] .today{display:none}
+body[data-display="phone"] .top-actions{margin-left:auto}
+body[data-display="phone"] .top-actions .primary-button{width:42px;height:40px;padding:0;font-size:0}
+body[data-display="phone"] .top-actions .primary-button span{display:inline;font-size:20px}
+body[data-display="phone"] .display-mode-select{width:112px;max-width:112px;font-size:10px}
+body[data-display="phone"] .content{padding:15px 10px 30px}
+body[data-display="phone"] .dashboard-heading,body[data-display="phone"] .page-title{align-items:stretch;flex-direction:column}
+body[data-display="phone"] .dashboard-heading h1,body[data-display="phone"] .page-title h1{font-size:24px}
+body[data-display="phone"] .stats-grid,body[data-display="phone"] .dashboard-grid,body[data-display="phone"] .placeholder-grid,body[data-display="phone"] .budget-layout,body[data-display="phone"] .move-layout,body[data-display="phone"] .agenda-layout,body[data-display="phone"] .settings-grid{grid-template-columns:1fr}
+body[data-display="phone"] .room-grid{grid-template-columns:1fr 1fr}
+body[data-display="phone"] .toolbar,body[data-display="phone"] .document-library-heading,body[data-display="phone"] .document-tools,body[data-display="phone"] .documents-title{align-items:stretch;flex-direction:column}
+body[data-display="phone"] .document-home-grid,body[data-display="phone"] .rental-subfolders{grid-template-columns:1fr}
+body[data-display="phone"] .document-search{width:100%}
+body[data-display="phone"] .settings-wide{grid-column:auto}
+body[data-display="phone"] .settings-card{grid-template-columns:42px 1fr}
+body[data-display="phone"] .settings-actions{align-items:flex-start;flex-direction:column}
+body[data-display="phone"] .panel{padding:13px}
+body[data-display="phone"] .visual-week{grid-template-columns:repeat(7,145px);overflow-x:auto}
+body[data-display="phone"] .workload-cards,body[data-display="phone"] .project-progress-grid{grid-template-columns:1fr}
