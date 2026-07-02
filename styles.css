@@ -164,3 +164,10 @@ body[data-display="phone"] .workload-cards,body[data-display="phone"] .project-p
 }
 body[data-display="phone"] .sidebar{height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 body[data-display="phone"] .sidebar-bottom{flex:0 0 auto;margin-top:auto;padding-bottom:8px}
+.mobile-settings-nav{display:none}
+@media(max-width:760px){
+  .mobile-settings-nav{display:flex}
+  #settingsButton{display:none}
+}
+body[data-display="phone"] .mobile-settings-nav{display:flex}
+body[data-display="phone"] #settingsButton{display:none}
