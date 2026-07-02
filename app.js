@@ -176,7 +176,7 @@ function renderDashboard() {
   $("#dashboardKpis").innerHTML=kpis.map(([label,value,caption,icon])=>`<article class="stat-card"><div class="stat-head"><span>${label}</span><i class="stat-icon green">${icon}</i></div><div class="stat-value"><strong>${value}</strong><small>${caption}</small></div></article>`).join("");
   const actionGroup=(title,list,css="")=>`<section class="action-group ${css}"><h3>${title}<span>${list.length}</span></h3>${list.slice(0,6).map(item=>`<button class="dashboard-action" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}"><time>${formatDate(item.date)}</time><span><strong>${esc(item.title)}</strong><small>${esc(item.assignee||item.type||"Commun")}</small></span></button>`).join("")||'<p>Rien à signaler</p>'}</section>`;
   if(dashboardMode==="visual"){
-    const days=Array.from({length:7},(_,index)=>{const date=new Date(today);date.setDate(today.getDate()+index);const key=date.toLocaleDateString("en-CA"),items=datedEvents.filter(item=>item.date===key);return `<article class="visual-day ${index===0?"today":""}"><header><strong>${date.getDate()}</strong><span>${new Intl.DateTimeFormat("fr-FR",{weekday:"short"}).format(date)}</span></header><b>${items.length} action${items.length>1?"s":""}</b>${items.slice(0,3).map(item=>`<button data-agenda-kind="${item.kind}" data-agenda-id="${item.id}">${esc(item.title)}</button>`).join("")||"<small>Rien de prévu</small>"}</article>`;});
+    const days=Array.from({length:7},(_,index)=>{const date=new Date(today);date.setDate(today.getDate()+index);const key=date.toLocaleDateString("en-CA"),items=datedEvents.filter(item=>item.date===key);return `<article class="visual-day ${index===0?"today":""}"><header><strong>${date.getDate()}</strong><span>${new Intl.DateTimeFormat("fr-FR",{weekday:"short"}).format(date)}</span></header><b class="visual-count ${items.length?"has-actions":"no-actions"}">${items.length} action${items.length>1?"s":""}</b>${items.slice(0,3).map(item=>`<button class="visual-action ${item.kind}" data-agenda-kind="${item.kind}" data-agenda-id="${item.id}">${esc(item.title)}</button>`).join("")||'<small class="visual-empty">Rien de prévu</small>'}</article>`;});
     $("#nextActions").className="visual-week";
     $("#nextActions").innerHTML=days.join("");
   }else{
@@ -364,6 +364,7 @@ async function sendDeadlineReminder(){
 function goTo(view){
   $$(".view").forEach(v=>v.classList.remove("active"));$(`#${view}View`).classList.add("active");
   $$(".nav-item[data-view]").forEach(n=>n.classList.toggle("active",n.dataset.view===view));
+  $(".mobile-settings-tab").classList.toggle("active",view==="settings");
   $("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});
 }
 function openTask(task=null){

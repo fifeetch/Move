@@ -175,3 +175,29 @@ body[data-display="phone"] .mobile-settings-nav,body[data-display="phone"] .mobi
 body[data-display="phone"] .close-mobile-menu{display:grid;margin-left:auto;width:38px;height:38px;place-items:center;border:0;border-radius:50%;color:#fff;background:rgba(255,255,255,.1);font-size:25px}
 body[data-display="phone"] .sidebar-bottom{display:none}
 body[data-display="phone"] #settingsButton{display:none}
+
+/* Onglet Paramètres mobile indépendant du menu latéral. */
+.mobile-settings-tab{display:none}
+@media(max-width:760px){
+  .mobile-settings-tab{display:flex;align-items:center;gap:6px;margin-left:4px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;color:var(--forest-2);background:#fff;font-size:10px;font-weight:700}
+  .mobile-settings-tab span{font-size:16px}
+  .mobile-settings-tab.active{color:#fff;background:var(--forest-2);border-color:var(--forest-2)}
+}
+body[data-display="phone"] .mobile-settings-tab{display:flex;align-items:center;gap:6px;margin-left:4px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;color:var(--forest-2);background:#fff;font-size:10px;font-weight:700}
+body[data-display="phone"] .mobile-settings-tab span{font-size:16px}
+body[data-display="phone"] .mobile-settings-tab.active{color:#fff;background:var(--forest-2);border-color:var(--forest-2)}
+
+/* Lisibilité et couleurs de la vue visuelle. */
+.visual-day header span{font-size:10px;font-weight:700;letter-spacing:.35px}
+.visual-day .visual-count{display:inline-flex;align-items:center;min-height:24px;margin:0 0 10px;padding:4px 8px;border-radius:999px;font-size:10px;line-height:1;font-weight:800}
+.visual-count.has-actions{color:#174c42;background:#dcece7}
+.visual-count.no-actions{color:#6e7773;background:#eceeea}
+.visual-day .visual-action{margin-top:6px;padding:8px 9px;border:1px solid #dce8e3;border-radius:7px;color:#173a35;background:#edf6f2;font-size:11px;line-height:1.35;font-weight:600}
+.visual-day .visual-action.appointment{border-color:#d7e4eb;color:#385f73;background:#edf5f8}
+.visual-day .visual-empty{display:block;padding:9px;border:1px dashed #d9ddd8;border-radius:7px;color:#737c78;background:#f7f7f4;font-size:11px;line-height:1.35}
+body[data-font-size="large"] .visual-day .visual-count{font-size:11px}
+body[data-font-size="large"] .visual-day .visual-action,body[data-font-size="large"] .visual-day .visual-empty{font-size:12px}
+@media(max-width:360px){
+  .mobile-settings-tab{width:40px;justify-content:center;padding:8px;font-size:0}
+  .mobile-settings-tab span{font-size:17px}
+}
